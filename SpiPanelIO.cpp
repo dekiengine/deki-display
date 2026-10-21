@@ -19,13 +19,30 @@ void SpiPanelIO::End()
     {
         return;
     }
-    --m_Depth;
-    m_Device->Wait(0);
+    // Only the outermost End waits: a Begin inside a held run (a strip inside
+    // the worker's run of strips) leaves what it queued on the wire.
+    if (--m_Depth == 0)
+    {
+        m_Device->Wait(0);
+    }
     m_Device->Release();
+}
+
+bool SpiPanelIO::Queue(const DekiSpi::Transfer& t)
+{
+    if (!m_Device->Queue(t))
+    {
+        return false;
+    }
+    ++m_Queued;
+    return true;
 }
 
 bool SpiPanelIO::Command(uint8_t cmd, const uint8_t* params, size_t n)
 {
+    // Inside a run, behind the pixels before it: the device copies a transfer
+    // of four bytes or less, so neither needs to outlive this call.
+    const bool queue = m_Depth > 0 && n <= 4;
     if (!Begin())
     {
         return false;
@@ -36,14 +53,14 @@ bool SpiPanelIO::Command(uint8_t cmd, const uint8_t* params, size_t n)
     c.txBytes = 1;
     c.dc = 0;
     c.keepCs = n > 0;
-    bool ok = m_Device->Transmit(c);
+    bool ok = queue ? Queue(c) : m_Device->Transmit(c);
     if (ok && n > 0)
     {
         DekiSpi::Transfer p;
         p.tx = params;
         p.txBytes = n;
         p.dc = 1;
-        ok = m_Device->Transmit(p);
+        ok = queue ? Queue(p) : m_Device->Transmit(p);
     }
     End();
     return ok;
@@ -51,16 +68,20 @@ bool SpiPanelIO::Command(uint8_t cmd, const uint8_t* params, size_t n)
 
 bool SpiPanelIO::StartPixels(uint8_t memoryWriteCmd)
 {
-    // Inside a Begin the command keeps chip select low into the pixels that
-    // follow it. Outside one there is no bus to hold, and the panel takes the
-    // pixels after chip select has gone high and low again, as a MIPI DBI
-    // controller does until the next command.
+    if (!m_Device)
+    {
+        return false;
+    }
+    // Inside a Begin the command is queued, and keeps chip select low into
+    // the pixels that follow it. Outside one there is no bus to hold, and the
+    // panel takes the pixels after chip select has gone high and low again,
+    // as a MIPI DBI controller does until the next command.
     DekiSpi::Transfer c;
     c.tx = &memoryWriteCmd;
     c.txBytes = 1;
     c.dc = 0;
     c.keepCs = m_Depth > 0;
-    return m_Device && m_Device->Transmit(c);
+    return m_Depth > 0 ? Queue(c) : m_Device->Transmit(c);
 }
 
 bool SpiPanelIO::QueuePixels(const void* data, size_t bytes, bool more)
@@ -74,7 +95,7 @@ bool SpiPanelIO::QueuePixels(const void* data, size_t bytes, bool more)
     t.txBytes = bytes;
     t.dc = 1;
     t.keepCs = more && m_Depth > 0;
-    return m_Device->Queue(t);
+    return Queue(t);
 }
 
 bool SpiPanelIO::WaitPixels(size_t leaveInFlight)

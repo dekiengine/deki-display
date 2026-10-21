@@ -102,6 +102,9 @@ public:
     int32_t GetWidth() const { return m_Width; }
     int32_t GetHeight() const { return m_Height; }
     int32_t GetRowAlign() const { return m_Info->rowAlign; }
+    /// How the panel was set up: its size before rotation, and the rotation.
+    const PanelConfig& GetConfig() const { return m_Config; }
+    uint8_t GetRotation() const { return m_Rotation; }
     const ControllerInfo& GetInfo() const { return *m_Info; }
 
 private:

@@ -18,3 +18,24 @@ alongside one that has them.
   by a table per controller (ST7789 first, its start-up and MADCTL ported
   from LovyanGFX); `SpiPanelIO`, 4-wire SPI with pixels queued for DMA; and
   `initSequence`, a board's own start-up for its panel module, as text.
+- Async present (`asyncPresent`): each frame is sent from the other core
+  while the next is drawn. A whole frame is copied, swapped into the wire's
+  byte order as it is copied, to one of two copies in external DMA memory,
+  and sent from there by DMA in parts as long as the bus takes, with no bands
+  in internal RAM; a strip is copied to one of two copies in internal DMA
+  memory and swapped in place a chunk at a time. The worker holds the bus
+  across back-to-back frames and strips, with each one's window commands
+  queued behind the one before, so the wire does not wait between them; a
+  copy goes back to the drawing core as soon as its last part is sent. The
+  platform runs the worker through `PanelDisplay::SetWorkerBackend`
+  (deki-esp32-integration: a FreeRTOS task pinned to the other core). On a
+  LilyGO T-Deck Plus at 80 MHz with the frame rate uncapped: 63.2 fps in
+  whole frames with 83.6 KB of internal RAM free, 61.0 in strips of 40 rows
+  (LovyanGFX: 62.6 with 73.8 KB, and 60.2).
+- Touch: `TouchPanelComponent` starts a GT911 (`GT911Touch`, ported from
+  LovyanGFX's driver) on a deki-i2c bus, shared with whatever else is on it,
+  and gives deki-input `PanelTouchInput`: a press, moves and a release at
+  screen pixels, turned with the display by `TouchMapper` (LovyanGFX's
+  default calibration and rotation, so a board's touch bounds carry over).
+  Without an INT pin, a point that stops changing is released and not pressed
+  again until it moves.

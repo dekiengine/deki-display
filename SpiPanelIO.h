@@ -10,7 +10,8 @@ namespace DekiDisplay
 /// byte, high for its parameters and for pixels. Pixels go out as queued DMA
 /// transfers on the device, with chip select held low from the memory-write
 /// command to the last part, so a write sent in pieces is one write to the
-/// panel.
+/// panel. Inside a Begin, a command with up to four parameter bytes (every
+/// window command) is queued too, its DC level set as it starts on the wire.
 class SpiPanelIO : public IPanelIO
 {
 public:
@@ -24,12 +25,17 @@ public:
     bool StartPixels(uint8_t memoryWriteCmd) override;
     bool QueuePixels(const void* data, size_t bytes, bool more) override;
     bool WaitPixels(size_t leaveInFlight) override;
+    uint32_t GetQueuedCount() const override { return m_Queued; }
     size_t GetMaxChunkBytes() const override;
     bool PixelsBigEndian() const override { return true; }
 
 private:
+    // Queues `t`, counting it.
+    bool Queue(const DekiSpi::Transfer& t);
+
     DekiSpi::IDekiSPIDevice* m_Device;
     int m_Depth = 0;
+    uint32_t m_Queued = 0;
 };
 
 }  // namespace DekiDisplay

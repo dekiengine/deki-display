@@ -13,9 +13,36 @@ namespace DekiDisplay
 namespace
 {
 
+const PanelDisplay::WorkerBackend* s_Worker = nullptr;
+
 inline uint16_t SwapBytes16(uint16_t v)
 {
     return static_cast<uint16_t>((v >> 8) | (v << 8));
+}
+
+// Swaps the bytes of `pixels` RGB565 pixels in place, two at a time.
+void SwapPixels(uint16_t* p, size_t pixels)
+{
+    if (pixels == 0)
+    {
+        return;
+    }
+    if (reinterpret_cast<uintptr_t>(p) & 2)
+    {
+        *p = SwapBytes16(*p);
+        ++p;
+        --pixels;
+    }
+    auto* words = reinterpret_cast<uint32_t*>(p);
+    for (size_t i = 0; i < pixels / 2; ++i)
+    {
+        const uint32_t v = words[i];
+        words[i] = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
+    }
+    if (pixels & 1)
+    {
+        p[pixels - 1] = SwapBytes16(p[pixels - 1]);
+    }
 }
 
 // An overlay pixel (ARGB8888, alpha not 0) over an RGB565 one, both values in
@@ -124,6 +151,10 @@ bool PanelDisplay::Start(const Options& options)
     // The panel's memory holds noise at power-on: black before the light.
     Clear();
     SetBacklight(true);
+    // The bands come back on the first present that needs them. A frame
+    // drawn in strips never does: its strips are sent from their own copies,
+    // and 20 KB of internal RAM is the scene's.
+    FreeBands();
     DEKI_LOG_INFO("PanelDisplay: %dx%d %s, bands of %d rows, %s on the wire", (int)m_Width, (int)m_Height,
                   m_Controller.GetInfo().name, (int)m_BandRows, m_SwapRGB565 ? "swapped" : "as drawn");
     return true;
@@ -142,6 +173,9 @@ void PanelDisplay::Shutdown()
     {
         return;
     }
+    // The worker finishes what it was given and stops before anything it
+    // uses goes.
+    SetAsyncPresent(false);
     m_IO.WaitPixels(0);
     FreeBands();
     for (uint16_t*& buffer : m_RenderBuffers)
@@ -250,6 +284,14 @@ void PanelDisplay::OverlayChanged()
 void PanelDisplay::PushRows(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format, int y0,
                             int y1, bool blendOverlay)
 {
+    m_Controller.BeginWrite();
+    PushRowsBody(framebuffer, width, height, format, y0, y1, blendOverlay);
+    m_Controller.EndWrite();
+}
+
+void PanelDisplay::PushRowsBody(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format, int y0,
+                                int y1, bool blendOverlay)
+{
     if (!EnsureBands())
     {
         return;
@@ -264,7 +306,6 @@ void PanelDisplay::PushRows(const uint8_t* framebuffer, int width, int height, D
 
     // One window for the whole run; the bands stream into it, each converted
     // while the one before it is on the wire, from the other buffer.
-    m_Controller.BeginWrite();
     m_Controller.SetWindow(0, y0, w, y1);
     for (int y = y0; y < y1; y += m_BandRows)
     {
@@ -326,24 +367,66 @@ void PanelDisplay::PushRows(const uint8_t* framebuffer, int width, int height, D
 
         m_IO.QueuePixels(band, static_cast<size_t>(rows) * w * sizeof(uint16_t), y + rows < y1);
         m_BandIndex = 1 - m_BandIndex;
+        // The worker's last job finishes behind this band: its copy goes back
+        // to the drawing core now, not when this whole job is queued.
+        GiveBackPendingCopy();
     }
-    m_Controller.EndWrite();
 }
 
 void PanelDisplay::PushRowsDirect(const uint16_t* framebuffer, int y0, int y1)
 {
+    m_Controller.BeginWrite();
+    PushRowsDirectBody(framebuffer, y0, y1);
+    // Ending the write waits for the last part: the frame is the engine's
+    // again when this returns.
+    m_Controller.EndWrite();
+}
+
+void PanelDisplay::PushRowsDirectBody(const uint16_t* frame, int y0, int y1)
+{
+    // As long a part as the bus takes: the fewer parts, the less each one's
+    // start costs.
     const size_t rowBytes = static_cast<size_t>(m_Width) * sizeof(uint16_t);
     const int chunkRows = static_cast<int>(std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes));
-    m_Controller.BeginWrite();
     m_Controller.SetWindow(0, y0, m_Width, y1);
     for (int y = y0; y < y1; y += chunkRows)
     {
         const int rows = std::min(chunkRows, y1 - y);
-        m_IO.QueuePixels(framebuffer + static_cast<size_t>(y) * m_Width, rowBytes * rows, y + rows < y1);
+        m_IO.QueuePixels(frame + static_cast<size_t>(y) * m_Width, rowBytes * rows, y + rows < y1);
+        // The worker's last job finishes behind this part.
+        GiveBackPendingCopy();
     }
-    // Ending the write waits for the last part: the frame is the engine's
-    // again when this returns.
-    m_Controller.EndWrite();
+}
+
+void PanelDisplay::CopyToWire(uint16_t* dst, const uint16_t* src, size_t pixels) const
+{
+    if (!m_SwapRGB565)
+    {
+        memcpy(dst, src, pixels * sizeof(uint16_t));
+        return;
+    }
+    // Two pixels at a time, as SwapPixels does in place, when both ends are
+    // 4-byte aligned (a frame, a frame copy, and whole rows of an even width
+    // into them always are).
+    if ((reinterpret_cast<uintptr_t>(dst) | reinterpret_cast<uintptr_t>(src)) & 3)
+    {
+        for (size_t i = 0; i < pixels; ++i)
+        {
+            dst[i] = SwapBytes16(src[i]);
+        }
+        return;
+    }
+    auto* d = reinterpret_cast<uint32_t*>(dst);
+    const auto* s = reinterpret_cast<const uint32_t*>(src);
+    for (size_t i = 0; i < pixels / 2; ++i)
+    {
+        const uint32_t v = s[i];
+        d[i] = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
+    }
+    if (pixels & 1)
+    {
+        dst[pixels - 1] = SwapBytes16(src[pixels - 1]);
+    }
 }
 
 void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format)
@@ -352,6 +435,25 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
     {
         return;
     }
+    // Async: the frame is copied for the worker, and the engine draws the
+    // next while it is sent. Waits only when both copies are in use.
+    // (The bands it is sent through are made here, on the drawing core: the
+    // worker never allocates.)
+    if (CanPresentAsync(framebuffer, width, height, format))
+    {
+        const int index = TakeCopy();
+        // Copied in the wire's byte order (swapped as it is copied, at about
+        // a copy's cost), so the worker sends the copy as it is, by DMA from
+        // external memory, in parts as long as the bus takes.
+        auto* copy = reinterpret_cast<uint16_t*>(m_Staging[index]);
+        CopyToWire(copy, reinterpret_cast<const uint16_t*>(framebuffer), static_cast<size_t>(width) * height);
+        BlendOverlayRows(copy, width, width, 0, height, m_WireBigEndian);
+        Post(Job{ index, 0, height, false, false });
+        return;
+    }
+    // Any other present goes after the worker's: it uses the bus and the
+    // bands.
+    WaitForPresents();
     // Already in the wire's order, the panel's size and with nothing to blend
     // over it: the frame goes out as it is, with no copy.
     const bool direct = format == Deki::ColorFormat::RGB565 && !m_SwapRGB565 && !HasOverlay() &&
@@ -378,11 +480,22 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
 void PanelDisplay::PresentRegions(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
                                   const Deki::Rect* rects, int32_t count)
 {
-    // Nothing changed on the panel.
+    // Nothing changed on the panel, or (drawing in strips) every strip has
+    // been sent already: nothing to wait for either, so the strip the worker
+    // is still sending goes on while the next frame is drawn.
     if (!m_Initialized || !framebuffer || count == 0)
     {
         return;
     }
+    // One rectangle (a strip of a frame drawn in strips, or a frame where one
+    // thing moved) goes to the worker, and the engine draws on while it is
+    // sent.
+    if (count == 1 && !rects[0].Empty() &&
+        PresentRowsAsync(framebuffer, width, height, format, rects[0].top, rects[0].bottom))
+    {
+        return;
+    }
+    WaitForPresents();
 
     // A window here spans whole rows, since the framebuffer's rows are only
     // contiguous at full width, so rectangles become row bands: widened to
@@ -576,7 +689,346 @@ void PanelDisplay::SetBacklight(bool on)
 
 bool PanelDisplay::SendCommand(uint8_t cmd, const uint8_t* params, size_t n)
 {
-    return m_Initialized && m_Controller.SendCommand(cmd, params, n);
+    if (!m_Initialized)
+    {
+        return false;
+    }
+    WaitForPresents();
+    return m_Controller.SendCommand(cmd, params, n);
+}
+
+// ---- Async present ----------------------------------------------------------
+
+void PanelDisplay::SetWorkerBackend(const WorkerBackend* backend)
+{
+    s_Worker = backend;
+}
+
+bool PanelDisplay::SetAsyncPresent(bool on)
+{
+    if (!on)
+    {
+        if (m_Async)
+        {
+            WaitForPresents();
+            Post(Job{ 0, 0, 0, false, true });
+            std::unique_lock<std::mutex> lock(m_Lock);
+            m_CopyFree.wait(lock, [this] { return !m_WorkerRunning; });
+        }
+        for (uint8_t*& staging : m_Staging)
+        {
+            Deki::Memory::Free(staging);
+            staging = nullptr;
+        }
+        FreeStrips();
+        m_StagingBytes = 0;
+        m_NextCopy = 0;
+        m_Async = false;
+        return true;
+    }
+    if (m_Async)
+    {
+        return true;
+    }
+    if (!m_Initialized)
+    {
+        DEKI_LOG_ERROR("PanelDisplay: async present needs a started display");
+        return false;
+    }
+    if (!s_Worker || !s_Worker->start)
+    {
+        DEKI_LOG_WARNING("PanelDisplay: this platform has no second core to send frames from; they are sent as they "
+                         "are drawn");
+        return false;
+    }
+    if (m_RenderBuffers[0])
+    {
+        DEKI_LOG_WARNING("PanelDisplay: async present does not go with usePsram or doubleBuffer (the engine would "
+                         "draw into the frame being sent); frames are sent as they are drawn");
+        return false;
+    }
+
+    // Two frames in external memory: the worker sends one while the engine
+    // copies the next frame into the other, then draws on into its own.
+    const size_t bytes = Deki::FrameBufferBytes(Deki::ColorFormat::RGB565, m_Width, m_Height);
+    for (uint8_t*& staging : m_Staging)
+    {
+        // DMA-capable: the worker sends straight from these.
+        staging = static_cast<uint8_t*>(Deki::Memory::AllocateDma(bytes, Deki::Memory::External));
+    }
+    if (!m_Staging[0] || !m_Staging[1])
+    {
+        DEKI_LOG_ERROR("PanelDisplay: no external memory for two %zu-byte frame copies; frames are sent as they are "
+                       "drawn",
+                       bytes);
+        SetAsyncPresent(false);
+        return false;
+    }
+    m_StagingBytes = bytes;
+    {
+        std::lock_guard<std::mutex> lock(m_Lock);
+        m_JobHead = 0;
+        m_JobCount = 0;
+        m_FreeCopies = 2;
+        m_WorkerRunning = true;
+    }
+    if (!s_Worker->start(&PanelDisplay::WorkerMain, this))
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_Lock);
+            m_WorkerRunning = false;
+        }
+        DEKI_LOG_ERROR("PanelDisplay: the present worker did not start; frames are sent as they are drawn");
+        SetAsyncPresent(false);
+        return false;
+    }
+    m_Async = true;
+    DEKI_LOG_INFO("PanelDisplay: frames are sent from the other core while the next is drawn");
+    return true;
+}
+
+void PanelDisplay::WorkerMain(void* self)
+{
+    static_cast<PanelDisplay*>(self)->RunWorker();
+}
+
+void PanelDisplay::RunWorker()
+{
+    // The worker holds the bus from one job to the next while jobs keep
+    // coming, so each job's window commands and first part are queued behind
+    // the one before while it is still on the wire, and the wire never waits
+    // between strips. A job's copy goes back to the drawing core once its
+    // parts are sent, which is found after the next job is queued, or when
+    // there is no next job: then everything is waited for, the copy given
+    // back and the bus let go, so the SD card and the radio get it between
+    // frames.
+    bool held = false;
+    uint32_t jobs = 0;
+    for (;;)
+    {
+        Job job{};
+        {
+            std::unique_lock<std::mutex> lock(m_Lock);
+            if (m_JobCount == 0 && held)
+            {
+                lock.unlock();
+                m_Controller.EndWrite();  // waits for everything queued
+                held = false;
+                GiveBackPendingCopy();
+                continue;
+            }
+            m_JobReady.wait(lock, [this] { return m_JobCount > 0; });
+            job = m_Jobs[m_JobHead];
+            m_JobHead = (m_JobHead + 1) % 3;
+            --m_JobCount;
+        }
+        if (job.stop)
+        {
+            break;  // posted after WaitForPresents: nothing is held or pending
+        }
+        // At full speed the next job is always waiting, so the worker never
+        // blocks and the core's idle task never runs, which a task watchdog
+        // reports. A pause every 30 jobs lets it; what is queued goes on.
+        if (++jobs % 30 == 0 && s_Worker && s_Worker->yield)
+        {
+            s_Worker->yield();
+        }
+        if (!held)
+        {
+            m_Controller.BeginWrite();
+            held = true;
+        }
+        if (job.strip)
+        {
+            SendStripBody(m_Strip[job.index], job.top, job.bottom - job.top);
+        }
+        else
+        {
+            // In the wire's order, with the overlay blended over it, as the
+            // drawing core copied it.
+            PushRowsDirectBody(reinterpret_cast<const uint16_t*>(m_Staging[job.index]), job.top, job.bottom);
+        }
+        // Given back as this job's first part was queued, unless it queued
+        // none.
+        GiveBackPendingCopy();
+        m_PendingCopy = true;
+        m_PendingEnd = m_IO.GetQueuedCount();
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_Lock);
+        m_WorkerRunning = false;
+    }
+    m_CopyFree.notify_all();
+}
+
+void PanelDisplay::GiveBackPendingCopy()
+{
+    if (!m_PendingCopy)
+    {
+        return;
+    }
+    // Everything queued after the last job's end may still be in flight; the
+    // last job's own parts must not.
+    m_IO.WaitPixels(m_IO.GetQueuedCount() - m_PendingEnd);
+    m_PendingCopy = false;
+    {
+        std::lock_guard<std::mutex> lock(m_Lock);
+        ++m_FreeCopies;
+    }
+    m_CopyFree.notify_all();
+}
+
+void PanelDisplay::Post(const Job& job)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_Lock);
+        m_Jobs[(m_JobHead + m_JobCount) % 3] = job;
+        ++m_JobCount;
+    }
+    m_JobReady.notify_one();
+}
+
+int PanelDisplay::TakeCopy()
+{
+    std::unique_lock<std::mutex> lock(m_Lock);
+    m_CopyFree.wait(lock, [this] { return m_FreeCopies > 0; });
+    --m_FreeCopies;
+    const int index = m_NextCopy;
+    m_NextCopy = 1 - m_NextCopy;
+    return index;
+}
+
+void PanelDisplay::WaitForPresents()
+{
+    // m_Async is only changed on the drawing core, which this runs on.
+    if (!m_Async)
+    {
+        return;
+    }
+    // Both copies free: nothing queued or being sent.
+    std::unique_lock<std::mutex> lock(m_Lock);
+    m_CopyFree.wait(lock, [this] { return m_FreeCopies == 2 || !m_WorkerRunning; });
+}
+
+bool PanelDisplay::CanPresentAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format) const
+{
+    return m_Async && framebuffer && format == Deki::ColorFormat::RGB565 && width == m_Width &&
+           height == m_Height && Deki::FrameBufferBytes(format, width, height) <= m_StagingBytes;
+}
+
+bool PanelDisplay::EnsureStrips(int rows)
+{
+    if (rows <= m_StripRows && m_Strip[0] && m_Strip[1])
+    {
+        return true;
+    }
+    const size_t bytes = static_cast<size_t>(m_Width) * rows * sizeof(uint16_t);
+    if (bytes > kMaxStripBytes)
+    {
+        return false;
+    }
+    // Growing: the worker may still be sending from the old copies.
+    WaitForPresents();
+    FreeStrips();
+    for (uint16_t*& strip : m_Strip)
+    {
+        strip = static_cast<uint16_t*>(Deki::Memory::AllocateDma(bytes, Deki::Memory::Internal));
+        if (!strip)
+        {
+            DEKI_LOG_WARNING("PanelDisplay: no internal DMA memory for two %zu-byte strip copies; strips go through "
+                             "external memory",
+                             bytes);
+            FreeStrips();
+            return false;
+        }
+    }
+    m_StripRows = rows;
+    DEKI_LOG_INFO("PanelDisplay: strips of up to %d rows are sent from the other core while the next is drawn", rows);
+    return true;
+}
+
+void PanelDisplay::FreeStrips()
+{
+    for (uint16_t*& strip : m_Strip)
+    {
+        Deki::Memory::Free(strip);
+        strip = nullptr;
+    }
+    m_StripRows = 0;
+}
+
+void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows)
+{
+    const int w = m_Width;
+    const size_t rowBytes = static_cast<size_t>(w) * sizeof(uint16_t);
+    // The strip goes out in chunks, each queued as soon as it is ready. With
+    // bytes to swap, the chunks are bands' size and each is swapped while the
+    // one before it is on the wire, so a strip costs about its transfer
+    // instead of its swap and then its transfer.
+    int chunkRows = static_cast<int>(std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes));
+    if (m_SwapRGB565)
+    {
+        chunkRows = std::min(chunkRows, static_cast<int>(m_BandRows));
+    }
+    m_Controller.SetWindow(0, top, w, top + rows);
+    for (int y = 0; y < rows; y += chunkRows)
+    {
+        const int n = std::min(chunkRows, rows - y);
+        uint16_t* chunk = strip + static_cast<size_t>(y) * w;
+        if (m_SwapRGB565)
+        {
+            SwapPixels(chunk, static_cast<size_t>(w) * n);
+        }
+        m_IO.QueuePixels(chunk, rowBytes * n, y + n < rows);
+        GiveBackPendingCopy();
+    }
+}
+
+bool PanelDisplay::PresentRowsAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
+                                    int top, int bottom)
+{
+    if (!CanPresentAsync(framebuffer, width, height, format))
+    {
+        return false;
+    }
+    // Widened to the panel's row alignment, as the synchronous path does.
+    const int align = std::max<int>(1, m_Controller.GetRowAlign());
+    top -= top % align;
+    bottom = ((bottom + align - 1) / align) * align;
+    top = std::max(top, 0);
+    bottom = std::min(bottom, height);
+    if (bottom <= top)
+    {
+        return true;
+    }
+
+    // A strip that fits the strip copies goes there and is sent from them as
+    // it is. Anything taller goes to the same rows of a whole-frame copy,
+    // sent through the bands like any other frame.
+    const bool strip = EnsureStrips(bottom - top);
+    const int index = TakeCopy();
+    const size_t pitch = static_cast<size_t>(width) * sizeof(uint16_t);
+    const auto* rows = reinterpret_cast<const uint16_t*>(framebuffer + static_cast<size_t>(top) * pitch);
+    const size_t pixels = static_cast<size_t>(bottom - top) * width;
+    if (strip)
+    {
+        // One memcpy in memory's byte order: the worker swaps it in place, a
+        // chunk at a time while the chunk before is on the wire, so the
+        // drawing core draws on sooner.
+        uint16_t* copy = m_Strip[index];
+        memcpy(copy, rows, pixels * sizeof(uint16_t));
+        BlendOverlayRows(copy, width, width, top, bottom, Deki::kRGB565BigEndian);
+    }
+    else
+    {
+        // Into the same rows of a frame copy, in the wire's order, as a whole
+        // frame is.
+        auto* copy = reinterpret_cast<uint16_t*>(m_Staging[index] + static_cast<size_t>(top) * pitch);
+        CopyToWire(copy, rows, pixels);
+        BlendOverlayRows(copy, width, width, top, bottom, m_WireBigEndian);
+    }
+    Post(Job{ index, top, bottom, strip, false });
+    return true;
 }
 
 }  // namespace DekiDisplay

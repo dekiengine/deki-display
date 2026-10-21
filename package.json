@@ -5,7 +5,9 @@
   "buildDefine": "DEKI_PACKAGE_DISPLAY",
   "requires": [
     "deki-spi",
-    "deki-gpio"
+    "deki-gpio",
+    "deki-i2c",
+    "deki-input"
   ],
   "features": [
     {
@@ -15,6 +17,15 @@
       "defaultEnabled": true,
       "componentTypes": [
         "DisplayPanelComponent"
+      ]
+    },
+    {
+      "id": "touch",
+      "displayName": "Touch Panel",
+      "buildDefine": "DEKI_FEATURE_DISPLAY_TOUCH",
+      "defaultEnabled": true,
+      "componentTypes": [
+        "TouchPanelComponent"
       ]
     }
   ],

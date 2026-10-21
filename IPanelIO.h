@@ -13,20 +13,25 @@ namespace DekiDisplay
 ///
 /// Pixels are queued and go out by DMA while the caller fills the next
 /// buffer: QueuePixels returns before they are sent, and WaitPixels says when
-/// a buffer is free again. A command waits for the pixels before it.
+/// a buffer is free again. Inside a Begin, commands are queued behind the
+/// pixels too, so the next window is set while the last pixels are still on
+/// the wire; outside one, a command waits for the pixels before it.
 class IPanelIO
 {
 public:
     virtual ~IPanelIO() = default;
 
-    /// Holds the bus for a run of commands and pixels (a frame, a strip).
-    /// Calls nest; Command and StartPixels hold it themselves when they are
-    /// called outside a Begin.
+    /// Holds the bus for a run of commands and pixels (a frame, a strip, or
+    /// several of them back to back). Calls nest; Command and StartPixels
+    /// hold it themselves when they are called outside a Begin.
     virtual bool Begin() = 0;
-    /// Waits for the pixels, then lets the bus go to its other devices.
+    /// Ends the outermost Begin by waiting for everything queued, then
+    /// letting the bus go to its other devices.
     virtual void End() = 0;
 
-    /// Sends `cmd`, then its `n` parameters. Waits for queued pixels first.
+    /// Sends `cmd`, then its `n` parameters. Inside a Begin it is queued
+    /// behind what is queued already (`params` need not outlive the call);
+    /// outside one it waits for the pixels first.
     virtual bool Command(uint8_t cmd, const uint8_t* params, size_t n) = 0;
 
     /// Opens a write into the panel's memory with `memoryWriteCmd` (RAMWR,
@@ -37,9 +42,14 @@ public:
     /// `data` must stay valid until WaitPixels has returned for it, and be
     /// no longer than GetMaxChunkBytes.
     virtual bool QueuePixels(const void* data, size_t bytes, bool more) = 0;
-    /// Waits until no more than `leaveInFlight` queued parts are still being
-    /// sent: 1 frees the older of two alternating buffers, 0 waits for all.
+    /// Waits until no more than `leaveInFlight` queued parts (pixels and
+    /// queued commands) are still being sent: 1 frees the older of two
+    /// alternating buffers, 0 waits for all.
     virtual bool WaitPixels(size_t leaveInFlight) = 0;
+    /// Parts queued since the IO was made, wrapping. The difference between
+    /// two readings is how many were queued in between, so a caller can wait
+    /// for everything up to a point with WaitPixels(GetQueuedCount() - mark).
+    virtual uint32_t GetQueuedCount() const = 0;
 
     /// The longest part QueuePixels takes.
     virtual size_t GetMaxChunkBytes() const = 0;

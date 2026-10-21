@@ -6,7 +6,8 @@
 // - PanelController: reset, start-up, MADCTL, rotation offsets and windows,
 //   as bytes on a recording IPanelIO.
 // - SpiPanelIO: DC and chip select per transfer, on a recording SPI device.
-// - PanelDisplay: byte order, bands, merged regions and the overlay.
+// - PanelDisplay: byte order, bands, merged regions and the overlay, sent as
+//   drawn and from a worker thread.
 // - DisplayPanelComponent: a boot scene runs where there is no SPI.
 
 #include <gtest/gtest.h>
@@ -22,8 +23,10 @@
 
 #include <deki/Engine.h>
 
+#include <atomic>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace DekiDisplay;
@@ -101,6 +104,7 @@ public:
         return true;
     }
     bool WaitPixels(size_t) override { return true; }
+    uint32_t GetQueuedCount() const override { return static_cast<uint32_t>(g_Events.size()); }
     size_t GetMaxChunkBytes() const override { return maxChunk; }
     bool PixelsBigEndian() const override { return bigEndian; }
 };
@@ -536,11 +540,12 @@ TEST(SpiPanelIO, ChipSelectStaysLowFromTheMemoryWriteToTheLastPart)
     ASSERT_TRUE(io.StartPixels(0x2C));
     ASSERT_TRUE(io.QueuePixels(pixels, 8, true));
     ASSERT_TRUE(io.QueuePixels(pixels, 8, false));
+    EXPECT_EQ(io.GetQueuedCount(), 3u);
     io.End();
     ASSERT_EQ(dev.sent.size(), 3u);
     EXPECT_EQ(dev.sent[0].dc, 0);
     EXPECT_TRUE(dev.sent[0].keepCs);
-    EXPECT_FALSE(dev.sent[0].queued);
+    EXPECT_TRUE(dev.sent[0].queued);  // behind whatever is still on the wire
     EXPECT_EQ(dev.sent[1].dc, 1);
     EXPECT_TRUE(dev.sent[1].keepCs);
     EXPECT_TRUE(dev.sent[1].queued);
@@ -548,6 +553,26 @@ TEST(SpiPanelIO, ChipSelectStaysLowFromTheMemoryWriteToTheLastPart)
     EXPECT_EQ(dev.held, 0);
     EXPECT_EQ(io.GetMaxChunkBytes(), 4096u);
     EXPECT_TRUE(io.PixelsBigEndian());
+}
+
+TEST(SpiPanelIO, InsideARunAWindowCommandIsQueuedBehindThePixels)
+{
+    RecordingDevice dev;
+    SpiPanelIO io(&dev);
+    const uint8_t window[] = { 0x00, 0x00, 0x00, 0xEF };
+    const uint8_t gamma[14] = {};
+    ASSERT_TRUE(io.Begin());
+    ASSERT_TRUE(io.Command(0x2B, window, 4));
+    ASSERT_TRUE(io.Command(0xE0, gamma, 14));  // too long to copy: sent and waited for
+    io.End();
+    ASSERT_EQ(dev.sent.size(), 4u);
+    EXPECT_TRUE(dev.sent[0].queued);
+    EXPECT_TRUE(dev.sent[1].queued);
+    EXPECT_EQ(dev.sent[1].dc, 1);
+    EXPECT_FALSE(dev.sent[2].queued);
+    EXPECT_FALSE(dev.sent[3].queued);
+    EXPECT_EQ(io.GetQueuedCount(), 2u);
+    EXPECT_EQ(dev.held, 0);
 }
 
 // --- PanelDisplay ---
@@ -748,6 +773,142 @@ TEST_F(DisplayTest, RenderBuffersAreOfferedAndSwappedWhenAsked)
     uint8_t* second = two.GetRenderBuffer(nullptr, nullptr);
     EXPECT_NE(second, nullptr);
     EXPECT_NE(second, first);
+}
+
+// --- Async present ---
+
+namespace
+{
+
+std::atomic<int> g_WorkersRunning{ 0 };
+
+// The desktop's stand-in for the other core: a thread.
+bool StartThread(void (*run)(void*), void* arg)
+{
+    ++g_WorkersRunning;
+    std::thread(
+        [run, arg]
+        {
+            run(arg);
+            --g_WorkersRunning;
+        })
+        .detach();
+    return true;
+}
+void NoYield() {}
+const PanelDisplay::WorkerBackend kThreadWorker{ &StartThread, &NoYield };
+
+}  // namespace
+
+TEST_F(DisplayTest, AsyncPresentNeedsAWorker)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(4, 4), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    PanelDisplay::SetWorkerBackend(nullptr);
+    EXPECT_FALSE(display.SetAsyncPresent(true));
+    EXPECT_FALSE(display.IsAsyncPresent());
+}
+
+TEST_F(DisplayTest, AsyncPresentDoesNotGoWithRenderBuffers)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(4, 4), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.doubleBuffer = true;
+    ASSERT_TRUE(display.Start(options));
+    PanelDisplay::SetWorkerBackend(&kThreadWorker);
+    EXPECT_FALSE(display.SetAsyncPresent(true));
+    PanelDisplay::SetWorkerBackend(nullptr);
+}
+
+TEST_F(DisplayTest, AsyncFramesSendTheSameBytesAndLeaveTheFrameAlone)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 2), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    PanelDisplay::SetWorkerBackend(&kThreadWorker);
+    ASSERT_TRUE(display.SetAsyncPresent(true));
+    g_Events.clear();
+
+    const std::vector<uint8_t> a = Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F });
+    const std::vector<uint8_t> b = Frame565({ 0x0001, 0x0002, 0x0003, 0x0004 });
+    display.Present(a.data(), 2, 2, Deki::ColorFormat::RGB565);
+    display.Present(b.data(), 2, 2, Deki::ColorFormat::RGB565);
+    display.Present(a.data(), 2, 2, Deki::ColorFormat::RGB565);  // waits for a free copy
+    display.WaitForPresents();
+    EXPECT_EQ(Wire(), (std::vector<uint8_t>{ 0x12, 0x34, 0xAB, 0xCD, 0xF8, 0x00, 0x00, 0x1F,  //
+                                             0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04,  //
+                                             0x12, 0x34, 0xAB, 0xCD, 0xF8, 0x00, 0x00, 0x1F }));
+    EXPECT_EQ(a, Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F }));
+
+    ASSERT_TRUE(display.SetAsyncPresent(false));
+    EXPECT_EQ(g_WorkersRunning.load(), 0);
+    PanelDisplay::SetWorkerBackend(nullptr);
+}
+
+TEST_F(DisplayTest, AnAsyncStripIsOneWindowSwappedInItsCopy)
+{
+    RecordingIO io;
+    io.bigEndian = !Deki::kRGB565BigEndian;  // swapped, in either byte order
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 40), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    PanelDisplay::SetWorkerBackend(&kThreadWorker);
+    ASSERT_TRUE(display.SetAsyncPresent(true));
+    g_Events.clear();
+
+    std::vector<uint16_t> pixels(2 * 40, 0);
+    pixels[2 * 20] = 0x1234;  // the strip's first pixel
+    const std::vector<uint8_t> frame = Frame565(pixels);
+    const Deki::Rect strip[] = { { 0, 20, 2, 38 } };
+    display.PresentRegions(frame.data(), 2, 40, Deki::ColorFormat::RGB565, strip, 1);
+    display.WaitForPresents();
+
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B 00 14 00 25" }));
+    const std::vector<Event> parts = Of(Event::Pixels);
+    ASSERT_EQ(parts.size(), 2u);  // 16 rows, then 2, while the first is sent
+    EXPECT_TRUE(parts[0].more);
+    EXPECT_FALSE(parts[1].more);
+    const std::vector<uint8_t> wire = Wire();
+    ASSERT_EQ(wire.size(), 2u * 18 * 2);
+    // In the wire's order: the frame's bytes swapped.
+    EXPECT_EQ(wire[0], frame[2 * 2 * 20 + 1]);
+    EXPECT_EQ(wire[1], frame[2 * 2 * 20]);
+    EXPECT_EQ(frame, Frame565(pixels));
+    PanelDisplay::SetWorkerBackend(nullptr);
+}
+
+TEST_F(DisplayTest, OtherPresentsWaitForTheWorker)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 4), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    PanelDisplay::SetWorkerBackend(&kThreadWorker);
+    ASSERT_TRUE(display.SetAsyncPresent(true));
+    g_Events.clear();
+
+    const std::vector<uint8_t> frame = Frame565({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    display.Present(frame.data(), 2, 4, Deki::ColorFormat::RGB565);
+    // Two rectangles: sent as drawn, after the frame the worker has.
+    const Deki::Rect rects[] = { { 0, 0, 2, 1 }, { 0, 3, 2, 4 } };
+    display.PresentRegions(frame.data(), 2, 4, Deki::ColorFormat::RGB565, rects, 2);
+    const std::vector<uint8_t> wire = Wire();
+    ASSERT_EQ(wire.size(), (8u + 4u) * 2);
+    EXPECT_EQ(wire[1], 1);   // the whole frame first
+    EXPECT_EQ(wire[15], 8);
+    EXPECT_EQ(wire[17], 1);  // then row 0
+    EXPECT_EQ(wire[21], 7);  // and row 3
+    PanelDisplay::SetWorkerBackend(nullptr);
 }
 
 // --- DisplayPanelComponent ---

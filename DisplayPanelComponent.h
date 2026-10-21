@@ -157,6 +157,10 @@ public:
 
     void Setup(SetupCallback onComplete) override;
     const char* GetSetupName() const override { return "Display Panel"; }
+
+    /// The started panel's controller, for touch to turn with it; nullptr
+    /// before Setup has started one.
+    static const PanelController* GetStartedController();
 };
 
 }  // namespace DekiDisplay

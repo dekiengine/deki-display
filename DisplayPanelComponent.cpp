@@ -35,6 +35,11 @@ void Delay(uint32_t ms)
 
 }  // namespace
 
+const PanelController* DisplayPanelComponent::GetStartedController()
+{
+    return s_Panel ? s_Panel->controller.get() : nullptr;
+}
+
 void DisplayPanelComponent::Setup(SetupCallback onComplete)
 {
     auto finish = [&](bool ok)
@@ -80,11 +85,6 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
             init.clear();
         }
     }
-    if (asyncPresent)
-    {
-        DEKI_LOG_WARNING("DisplayPanelComponent: asyncPresent is not built yet; frames are sent as they are drawn");
-    }
-
     DekiSpi::DeviceConfig device;
     device.csPin = csPin;
     device.dcPin = dcPin;
@@ -138,6 +138,12 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     {
         finish(false);
         return;
+    }
+    // Off again, with a warning, where the platform cannot: frames are then
+    // sent as they are drawn.
+    if (asyncPresent)
+    {
+        panel->display->SetAsyncPresent(true);
     }
 
     s_Panel = std::move(panel);
