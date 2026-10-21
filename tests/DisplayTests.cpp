@@ -16,6 +16,7 @@
 #include "InitSequence.h"
 #include "PanelController.h"
 #include "PanelDisplay.h"
+#include "QspiPanelIO.h"
 #include "SpiPanelIO.h"
 
 #include "DekiGPIO.h"
@@ -480,6 +481,11 @@ public:
         bool keepCs;
         bool queued;
         int held;
+        int cmdBits = 0;
+        int cmd = 0;
+        int addrBits = 0;
+        uint32_t addr = 0;
+        DekiSpi::Lines lines = DekiSpi::Lines::Single;
     };
     std::vector<Sent> sent;
     int held = 0;
@@ -503,7 +509,8 @@ private:
         // Chip select may only stay low while the bus is held.
         EXPECT_TRUE(!t.keepCs || held > 0);
         const auto* p = static_cast<const uint8_t*>(t.tx);
-        sent.push_back({ std::vector<uint8_t>(p, p + t.txBytes), t.dc, t.keepCs, queued, held });
+        sent.push_back({ std::vector<uint8_t>(p, p + t.txBytes), t.dc, t.keepCs, queued, held, t.cmdBits, t.cmd,
+                         t.addrBits, t.addr, t.lines });
         return true;
     }
 };
@@ -573,6 +580,138 @@ TEST(SpiPanelIO, InsideARunAWindowCommandIsQueuedBehindThePixels)
     EXPECT_FALSE(dev.sent[3].queued);
     EXPECT_EQ(io.GetQueuedCount(), 2u);
     EXPECT_EQ(dev.held, 0);
+}
+
+// --- QspiPanelIO ---
+
+TEST(QspiPanelIO, ACommandIsARegisterWriteOnOneLine)
+{
+    RecordingDevice dev;
+    QspiPanelIO io(&dev);
+    const uint8_t madctl = 0x60;
+    ASSERT_TRUE(io.Command(0x36, &madctl, 1));
+    ASSERT_EQ(dev.sent.size(), 1u);
+    // 02 00 36 00, then the parameter: one transfer, no DC.
+    EXPECT_EQ(dev.sent[0].cmdBits, 8);
+    EXPECT_EQ(dev.sent[0].cmd, 0x02);
+    EXPECT_EQ(dev.sent[0].addrBits, 24);
+    EXPECT_EQ(dev.sent[0].addr, 0x3600u);
+    EXPECT_EQ(dev.sent[0].bytes, (std::vector<uint8_t>{ 0x60 }));
+    EXPECT_EQ(dev.sent[0].lines, DekiSpi::Lines::Single);
+    EXPECT_EQ(dev.sent[0].dc, -1);
+    EXPECT_FALSE(dev.sent[0].keepCs);
+    EXPECT_EQ(dev.held, 0);
+}
+
+TEST(QspiPanelIO, PixelsAreOneQuadWriteFromTheMemoryWriteToTheLastPart)
+{
+    RecordingDevice dev;
+    QspiPanelIO io(&dev);
+    const uint8_t pixels[8] = {};
+    ASSERT_TRUE(io.Begin());
+    ASSERT_TRUE(io.StartPixels(0x2C));
+    EXPECT_TRUE(dev.sent.empty());  // the phases go with the first part
+    ASSERT_TRUE(io.QueuePixels(pixels, 8, true));
+    ASSERT_TRUE(io.QueuePixels(pixels, 8, false));
+    io.End();
+    ASSERT_EQ(dev.sent.size(), 2u);
+    EXPECT_EQ(dev.sent[0].cmd, 0x32);
+    EXPECT_EQ(dev.sent[0].addr, 0x2C00u);
+    EXPECT_EQ(dev.sent[0].lines, DekiSpi::Lines::Quad);
+    EXPECT_TRUE(dev.sent[0].keepCs);
+    EXPECT_TRUE(dev.sent[0].queued);
+    // The rest continues the write: no phases of its own.
+    EXPECT_EQ(dev.sent[1].cmdBits, 0);
+    EXPECT_EQ(dev.sent[1].addrBits, 0);
+    EXPECT_EQ(dev.sent[1].lines, DekiSpi::Lines::Quad);
+    EXPECT_FALSE(dev.sent[1].keepCs);
+    EXPECT_EQ(io.GetQueuedCount(), 2u);
+    EXPECT_EQ(dev.held, 0);
+}
+
+// --- The RM67162 ---
+
+TEST_F(DisplayTest, TheRM67162StartsAsLovyanGFXStartsIt)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::RM67162;
+    c.panelWidth = 240;
+    c.panelHeight = 536;
+    c.rotation = 1;      // landscape, as the T-Display S3 AMOLED shows it
+    c.rgbOrder = false;  // no colour-order bit on this controller
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    const std::vector<std::string> cmds = Commands();
+    ASSERT_GE(cmds.size(), 3u);
+    EXPECT_EQ(cmds[0], "FE 00");
+    EXPECT_EQ(cmds[1], "11");
+    EXPECT_EQ(cmds[cmds.size() - 3], "20");     // INVOFF
+    EXPECT_EQ(cmds[cmds.size() - 2], "3A 55");  // RGB565
+    EXPECT_EQ(cmds.back(), "36 60");            // landscape, no BGR
+    EXPECT_EQ(panel.GetWidth(), 536);
+    EXPECT_EQ(panel.GetHeight(), 240);
+    EXPECT_EQ(panel.GetRowAlign(), 2);
+}
+
+TEST_F(DisplayTest, AnAmoledsOffsetIsNotTurnedWithTheRotation)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::RM67162;
+    c.panelWidth = 240;
+    c.panelHeight = 536;
+    c.offsetX = 10;
+    c.offsetY = 20;
+    c.rotation = 1;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(0, 0, 536, 240));
+    // Swapped with the axes, and otherwise as given (Panel_AMOLED).
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2A 00 14 02 2B", "2B 00 0A 00 F9" }));
+}
+
+TEST_F(DisplayTest, AnAmoledsBacklightIsItsBrightness)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::RM67162;
+    c.panelWidth = 4;
+    c.panelHeight = 4;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));  // no backlight pin
+    g_Events.clear();
+    display.SetBacklight(false);
+    display.SetBacklight(true);
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "51 00", "51 AF" }));
+
+    // An LCD has no such command: nothing is sent without a backlight pin.
+    RecordingIO lcdIO;
+    PanelController lcd(lcdIO, &RecordDelay);
+    ASSERT_TRUE(lcd.Init(SmallPanel(4, 4), nullptr));
+    EXPECT_FALSE(lcd.HasBrightness());
+    EXPECT_FALSE(lcd.SetBrightness(0x80));
+}
+
+TEST_F(DisplayTest, AnAmoledsRegionsStartAndEndOnEvenRows)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::RM67162;
+    c.panelWidth = 4;
+    c.panelHeight = 20;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    g_Events.clear();
+    const std::vector<uint8_t> frame(4 * 20 * 2, 0);
+    const Deki::Rect rect[] = { { 0, 3, 4, 6 } };  // rows 3-5
+    display.PresentRegions(frame.data(), 4, 20, Deki::ColorFormat::RGB565, rect, 1);
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B 00 02 00 05" }));  // rows 2-5
 }
 
 // --- PanelDisplay ---
@@ -812,17 +951,29 @@ TEST_F(DisplayTest, AsyncPresentNeedsAWorker)
     EXPECT_FALSE(display.IsAsyncPresent());
 }
 
-TEST_F(DisplayTest, AsyncPresentDoesNotGoWithRenderBuffers)
+TEST_F(DisplayTest, AsyncPresentSendsACopyOfARenderBuffer)
 {
+    // The T-Display S3 AMOLED's set-up: its frame is too big for internal
+    // RAM, so the engine draws into a render buffer in PSRAM.
     RecordingIO io;
     PanelController panel(io, &RecordDelay);
-    ASSERT_TRUE(panel.Init(SmallPanel(4, 4), nullptr));
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 2), nullptr));
     PanelDisplay display(panel, io);
     PanelDisplay::Options options;
-    options.doubleBuffer = true;
+    options.usePsram = true;
     ASSERT_TRUE(display.Start(options));
     PanelDisplay::SetWorkerBackend(&kThreadWorker);
-    EXPECT_FALSE(display.SetAsyncPresent(true));
+    ASSERT_TRUE(display.SetAsyncPresent(true));
+    g_Events.clear();
+
+    uint8_t* buffer = display.GetRenderBuffer(nullptr, nullptr);
+    ASSERT_NE(buffer, nullptr);
+    const std::vector<uint8_t> frame = Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F });
+    memcpy(buffer, frame.data(), frame.size());
+    display.Present(buffer, 2, 2, Deki::ColorFormat::RGB565);
+    memset(buffer, 0, frame.size());  // the engine draws the next frame at once
+    display.WaitForPresents();
+    EXPECT_EQ(Wire(), (std::vector<uint8_t>{ 0x12, 0x34, 0xAB, 0xCD, 0xF8, 0x00, 0x00, 0x1F }));
     PanelDisplay::SetWorkerBackend(nullptr);
 }
 

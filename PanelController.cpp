@@ -116,9 +116,18 @@ bool PanelController::SetRotation(uint8_t rotation)
     }
     m_Width = pw;
     m_Height = ph;
-    m_ColStart = (r & 2) ? mw - (pw + ox) : ox;
-    // Rotations 1, 2, 4 and 7 count rows from the other end of memory.
-    m_RowStart = ((1 << r) & 0b10010110) ? mh - (ph + oy) : oy;
+    if (m_Info->offsetsFollowRotation)
+    {
+        m_ColStart = (r & 2) ? mw - (pw + ox) : ox;
+        // Rotations 1, 2, 4 and 7 count rows from the other end of memory.
+        m_RowStart = ((1 << r) & 0b10010110) ? mh - (ph + oy) : oy;
+    }
+    else
+    {
+        // Panel_AMOLED: the offset as it is, only swapped with the axes.
+        m_ColStart = ox;
+        m_RowStart = oy;
+    }
     ForgetWindow();
     return SendMadctl();
 }
@@ -150,6 +159,11 @@ bool PanelController::SetSleep(bool sleep)
 bool PanelController::SetDisplayOn(bool on)
 {
     return m_IO.Command(on ? kCmdDispOn : kCmdDispOff, nullptr, 0);
+}
+
+bool PanelController::SetBrightness(uint8_t level)
+{
+    return HasBrightness() && m_IO.Command(m_Info->brightnessCmd, &level, 1);
 }
 
 bool PanelController::BeginWrite()

@@ -3,6 +3,7 @@
 #include "DekiSPI.h"  // from deki-spi
 #include "InitSequence.h"
 #include "PanelDisplay.h"
+#include "QspiPanelIO.h"
 #include "SpiPanelIO.h"
 
 #include <deki/Engine.h>
@@ -22,7 +23,7 @@ namespace
 // drivers the boot scene starts. The device belongs to its SPI bus.
 struct StartedPanel
 {
-    std::unique_ptr<SpiPanelIO> io;
+    std::unique_ptr<IPanelIO> io;
     std::unique_ptr<PanelController> controller;
     std::unique_ptr<PanelDisplay> display;
 };
@@ -73,6 +74,14 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         finish(false);
         return;
     }
+    const bool quad = busType == DisplayBus::QSPI;
+    if (quad && !bus->IsQuad())
+    {
+        DEKI_LOG_ERROR("DisplayPanelComponent: a QSPI panel needs IO2 and IO3, and the SPI Bus on host %d has none",
+                       (int)spiHost);
+        finish(false);
+        return;
+    }
 
     InitSequence init;
     if (!initSequence.empty())
@@ -87,7 +96,7 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     }
     DekiSpi::DeviceConfig device;
     device.csPin = csPin;
-    device.dcPin = dcPin;
+    device.dcPin = quad ? -1 : dcPin;  // a quad panel names each write instead
     device.clockHz = spiWriteHz > 0 ? static_cast<uint32_t>(spiWriteHz) : 40000000u;
     device.mode = 0;
     device.halfDuplex = true;
@@ -102,7 +111,14 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     }
 
     auto panel = std::make_unique<StartedPanel>();
-    panel->io = std::make_unique<SpiPanelIO>(dev);
+    if (quad)
+    {
+        panel->io = std::make_unique<QspiPanelIO>(dev);
+    }
+    else
+    {
+        panel->io = std::make_unique<SpiPanelIO>(dev);
+    }
     panel->controller = std::make_unique<PanelController>(*panel->io, &Delay);
 
     PanelConfig config;
@@ -118,9 +134,9 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     config.rgbOrder = rgbOrder;
     config.resetPin = rstPin;
     config.hasChipSelect = csPin >= 0;
-    DEKI_LOG_INFO("DisplayPanelComponent: %s %dx%d on SPI host %d at %u Hz (CS %d, DC %d, RST %d), %s start-up",
-                  GetControllerInfo(controller).name, (int)panelWidth, (int)panelHeight, (int)spiHost,
-                  (unsigned)dev->GetClockHz(), (int)csPin, (int)dcPin, (int)rstPin,
+    DEKI_LOG_INFO("DisplayPanelComponent: %s %dx%d on %s host %d at %u Hz (CS %d, DC %d, RST %d), %s start-up",
+                  GetControllerInfo(controller).name, (int)panelWidth, (int)panelHeight, quad ? "QSPI" : "SPI",
+                  (int)spiHost, (unsigned)dev->GetClockHz(), (int)csPin, quad ? -1 : (int)dcPin, (int)rstPin,
                   init.empty() ? "default" : "the board's");
     if (!panel->controller->Init(config, &init))
     {

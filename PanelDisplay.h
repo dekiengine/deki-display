@@ -108,8 +108,9 @@ public:
     ///
     /// Every other present waits for the worker first. Needs a worker backend
     /// and the external memory for two frames; without them it stays off.
-    /// Not with render buffers (usePsram, doubleBuffer): the engine would draw
-    /// into the frame being sent.
+    /// With render buffers (usePsram, doubleBuffer) too: the worker sends a
+    /// copy, so the engine drawing into its buffer never touches what is on
+    /// the wire.
     bool SetAsyncPresent(bool on);
     bool IsAsyncPresent() const { return m_Async; }
     /// Waits until the worker has sent every frame and strip it was given.

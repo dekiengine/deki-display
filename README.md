@@ -7,11 +7,13 @@ A display library Deki owns: panel controllers, the buses they are on and their 
 | Part | Bus | Status |
 | --- | --- | --- |
 | ST7789 panel | SPI | runs on the LilyGO T-Deck Plus |
+| RM67162 AMOLED panel | QSPI | runs on the LilyGO T-Display S3 AMOLED |
 | GT911 touch | I2C | runs on the LilyGO T-Deck Plus |
+| CST816S/T touch | I2C | runs on the LilyGO T-Display S3 AMOLED |
 
 With `asyncPresent` each frame (or strip) is sent from the chip's other core while the next is drawn. On a LilyGO T-Deck Plus at 80 MHz, with the frame rate uncapped, that is 63.2 fps in whole frames (the wire alone allows 65) and 61.0 in strips of 40 rows.
 
-More controllers (ILI9341, ST7789P3, ST7735, GC9A01, SSD1351, RM67162 over QSPI) and touch (FT5x06, CST816S/T, XPT2046) are on their way; until then `deki-lovyangfx-integration` stays every board's default.
+More controllers (ILI9341, ST7789P3, ST7735, GC9A01, SSD1351) and touch (FT5x06, XPT2046) are on their way; until then `deki-lovyangfx-integration` stays available for them.
 
 ## Init sequences belong to the board
 
@@ -29,7 +31,7 @@ One command per line or `;`: its hex byte, its parameter bytes, then optionally 
 ## Set-up
 
 1. An SPI Bus component (`deki-spi`) for the panel's bus, first in `PlatformSetupComponent`'s list.
-2. `DisplayPanelComponent` after it: the controller, the SPI host, DC, CS, RST and backlight pins, size, rotation, inversion and colour order.
+2. `DisplayPanelComponent` after it: the controller, the bus (`SPI` with a DC pin, or `QSPI` for an AMOLED on a bus with IO2 and IO3), the SPI host, CS, RST and backlight pins, size, rotation, inversion and colour order. An AMOLED has no backlight: its brightness is a command, sent when the engine turns the screen off and on.
 3. For touch, an I2C Bus component (`deki-i2c`) for the controller's bus, then `TouchPanelComponent` after the display: the controller, the I2C port, INT and RST pins, and the raw bounds along the panel's width and height before rotation.
 
 On a platform with no SPI or I2C (the editor, the simulator) the components start nothing and report success, so a board's boot scene runs there too.

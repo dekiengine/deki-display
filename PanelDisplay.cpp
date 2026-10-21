@@ -684,6 +684,14 @@ void PanelDisplay::SetBacklight(bool on)
     if (gpio && m_Options.backlightPin >= 0)
     {
         gpio->Write(m_Options.backlightPin, on != m_Options.backlightInvert);
+        return;
+    }
+    // No backlight (an AMOLED): the panel's own brightness, set between
+    // presents since it goes over the panel's bus.
+    if (m_Initialized && m_Controller.HasBrightness())
+    {
+        WaitForPresents();
+        m_Controller.SetBrightness(on ? m_Controller.GetInfo().onBrightness : 0);
     }
 }
 
@@ -741,13 +749,6 @@ bool PanelDisplay::SetAsyncPresent(bool on)
                          "are drawn");
         return false;
     }
-    if (m_RenderBuffers[0])
-    {
-        DEKI_LOG_WARNING("PanelDisplay: async present does not go with usePsram or doubleBuffer (the engine would "
-                         "draw into the frame being sent); frames are sent as they are drawn");
-        return false;
-    }
-
     // Two frames in external memory: the worker sends one while the engine
     // copies the next frame into the other, then draws on into its own.
     const size_t bytes = Deki::FrameBufferBytes(Deki::ColorFormat::RGB565, m_Width, m_Height);

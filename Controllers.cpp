@@ -44,6 +44,24 @@ constexpr uint8_t kST7789Init[] = {
     0xFF, 0xFF,
 };
 
+// LovyanGFX's Panel_RM67162 list0: out of sleep, the OVSS voltages on pages 5
+// and 1, landscape, RGB565, dark until the display is on, then brightness.
+constexpr uint8_t kRM67162Init[] = {
+    0xFE, 1, 0x00,              // page 0
+    0x11, 0 + kDelay, 150,      // SLPOUT
+    0xFE, 1, 0x05,              // page 5
+    0x05, 1, 0x05,              // OVSS control: ELVSS -3.95 V
+    0xFE, 1, 0x01,              // page 1
+    0x73, 1, 0x25,              // OVSS voltage level -4.0 V
+    0xFE, 1, 0x00,              // page 0
+    0x36, 1, 0x60,              // MADCTL
+    0x3A, 1, 0x55,              // COLMOD: RGB565
+    0x51, 1, 0x00,              // brightness: dark
+    0x29, 0 + kDelay, 150,      // DISPON
+    0x51, 1, 0xAF,              // brightness: on
+    0xFF, 0xFF,
+};
+
 // Panel_LCD::getMadCtl: rotations 0-3, then 4-7 mirrored.
 constexpr ControllerInfo kControllers[] = {
     {
@@ -64,6 +82,26 @@ constexpr ControllerInfo kControllers[] = {
         kBGR,
         true,
         1,
+        true,
+        0,
+        0,
+    },
+    {
+        // LovyanGFX's Panel_RM67162 and Panel_AMOLED: its own MADCTL per
+        // rotation, no colour-order bit, offsets applied as they are, rows
+        // in pairs (it ignores a write whose start or size is odd along its
+        // short axis), and brightness by command, having no backlight.
+        "RM67162",
+        240,
+        536,
+        kRM67162Init,
+        { 0x00, 0x60, 0xC0, 0xA0, 0xC2, 0x62, 0x02, 0xA2 },
+        0,
+        false,
+        2,
+        false,
+        0x51,
+        0xAF,
     },
 };
 

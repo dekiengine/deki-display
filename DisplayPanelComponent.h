@@ -10,6 +10,12 @@
 namespace DekiDisplay
 {
 
+enum class DisplayBus : uint8_t
+{
+    SPI = 0,
+    QSPI = 1
+};
+
 enum class DisplayRotation : uint8_t
 {
     Portrait = 0,
@@ -84,6 +90,11 @@ public:
 
     DEKI_GROUP("Bus")
     DEKI_EXPORT
+    DEKI_TOOLTIP("How the panel is wired: SPI with a data/command pin (most LCDs), or quad SPI (AMOLED panels such as "
+                 "the RM67162), which needs an SPI Bus with IO2 and IO3")
+    DisplayBus busType = DisplayBus::SPI;
+
+    DEKI_EXPORT
     DEKI_TOOLTIP("The SPI host the panel is on, as the SPI Bus component that starts it numbers it (on an ESP32-S3: "
                  "1 = SPI2, 2 = SPI3)")
     DEKI_RANGE(0, 3)
@@ -96,6 +107,7 @@ public:
 
     DEKI_EXPORT
     DEKI_TOOLTIP("Data/command pin (DC)")
+    DEKI_VISIBLE_WHEN(busType, SPI)
     DEKI_RANGE(-1, 48)
     int32_t dcPin = -1;
 

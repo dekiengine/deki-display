@@ -39,3 +39,14 @@ alongside one that has them.
   default calibration and rotation, so a board's touch bounds carry over).
   Without an INT pin, a point that stops changing is released and not pressed
   again until it moves.
+- QSPI panels: `DisplayPanelComponent`'s `busType` `QSPI` drives an AMOLED
+  through `QspiPanelIO` (each register write framed 0x02, pixels 0x32 on four
+  lines, as LovyanGFX frames them). The RM67162 is the first: its start-up,
+  MADCTL and offsets ported from LovyanGFX, rows widened to even, and
+  brightness by command where an LCD has a backlight.
+- The CST816S/T touch controller (`TouchController::CST816`). It sleeps, and
+  does not answer on I2C, until touched: it is set up when it first answers,
+  and a read it does not answer is no touch.
+- Async present works with render buffers (`usePsram`, `doubleBuffer`) too:
+  the worker sends a copy, so the engine never draws into what is being
+  sent.

@@ -8,9 +8,12 @@ namespace DekiDisplay
 {
 
 /// The panel controllers this package drives. Scenes store the name.
+/// The panel controllers this package drives. Scenes store the name.
+/// RM67162 is an AMOLED controller that only speaks quad SPI.
 enum class Controller : uint8_t
 {
-    ST7789 = 0
+    ST7789 = 0,
+    RM67162 = 1
 };
 
 /// A controller as data: what differs between MIPI DCS controllers is the
@@ -34,6 +37,15 @@ struct ControllerInfo
     bool nopOnEnd;
     /// Writes must start and end on a multiple of this many rows.
     uint8_t rowAlign;
+    /// The visible panel's offset in memory turns with the rotation (the
+    /// MIPI DCS controllers); false where the offset is applied as it is (the
+    /// AMOLED controllers).
+    bool offsetsFollowRotation;
+    /// The command that sets brightness (0x51 on an AMOLED, which has no
+    /// backlight), or 0 for none.
+    uint8_t brightnessCmd;
+    /// The brightness the panel is started at and turned back on to.
+    uint8_t onBrightness;
 };
 
 /// The table entry for `c`; never null.
@@ -86,6 +98,10 @@ public:
     bool SetInvert(bool invert);
     bool SetSleep(bool sleep);
     bool SetDisplayOn(bool on);
+    /// Sets brightness on a controller that has its own (an AMOLED). False on
+    /// one that does not: its brightness is a backlight's.
+    bool SetBrightness(uint8_t level);
+    bool HasBrightness() const { return m_Info->brightnessCmd != 0; }
 
     /// Holds the bus for a write; EndWrite waits for the pixels and lets it go.
     bool BeginWrite();

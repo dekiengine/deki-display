@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "DekiGPIO.h"
+#include "CST816Touch.h"
 #include "DekiI2C.h"
 #include "GT911Touch.h"
 #include "PanelTouchInput.h"
@@ -295,6 +296,112 @@ TEST_F(GT911Test, AReportFromLongAgoIsDroppedForAFreshOne)
     EXPECT_EQ(touch.Read(&p, 1), 0);
     // It waited a little for a fresh report, 1 ms at a time.
     EXPECT_FALSE(g_Delays.empty());
+}
+
+// --- CST816Touch ---
+
+namespace
+{
+
+// A CST816 behind an I2C bus: register reads and writes, and no answer at
+// all while it sleeps.
+class FakeCST816Bus : public DekiI2c::IDekiI2C
+{
+public:
+    bool awake = false;
+    uint8_t regs[256] = {};
+
+    const char* GetPackageId() const override { return "i2c"; }
+    const char* GetPackageName() const override { return "Fake CST816 bus"; }
+    void Configure(const Deki::PackageConfig&) override {}
+    bool Initialize() override { return true; }
+    void Shutdown() override {}
+    void Update(float) override {}
+    Deki::PackageState GetState() const override { return Deki::PackageState::Running; }
+    const char* GetLastError() const override { return ""; }
+    int GetPort() const override { return 0; }
+    int GetSdaPin() const override { return 3; }
+    int GetSclPin() const override { return 2; }
+    int GetFrequencyHz() const override { return 400000; }
+    bool Probe(uint8_t addr) override { return awake && addr == 0x15; }
+    bool Read(uint8_t addr, uint8_t reg, uint8_t* dst, size_t len) override
+    {
+        if (!awake || addr != 0x15)
+        {
+            return false;
+        }
+        for (size_t i = 0; i < len; ++i)
+        {
+            dst[i] = regs[(reg + i) & 0xFF];
+        }
+        return true;
+    }
+    bool Write(uint8_t addr, uint8_t reg, const uint8_t* src, size_t len) override
+    {
+        if (!awake || addr != 0x15)
+        {
+            return false;
+        }
+        for (size_t i = 0; i < len; ++i)
+        {
+            regs[(reg + i) & 0xFF] = src[i];
+        }
+        return true;
+    }
+    // One finger at (x, y), as its registers from 0x02 hold it.
+    void Touch(uint16_t x, uint16_t y)
+    {
+        regs[0x02] = 1;
+        regs[0x03] = static_cast<uint8_t>(x >> 8);
+        regs[0x04] = static_cast<uint8_t>(x);
+        regs[0x05] = static_cast<uint8_t>(y >> 8);
+        regs[0x06] = static_cast<uint8_t>(y);
+    }
+};
+
+}  // namespace
+
+TEST(CST816Touch, AsleepItIsNoTouchAndNotAnError)
+{
+    FakeCST816Bus bus;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    EXPECT_TRUE(touch.Init());  // it cannot be told from missing until touched
+    TouchPoint p;
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+    EXPECT_FALSE(touch.IsAwake());
+}
+
+TEST(CST816Touch, TheFirstAnswerSetsItUpThenItsPointIsRead)
+{
+    FakeCST816Bus bus;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    bus.awake = true;  // a finger woke it
+    bus.Touch(0x0123, 0x0045);
+    TouchPoint p;
+    ASSERT_EQ(touch.Read(&p, 1), 1);
+    EXPECT_TRUE(touch.IsAwake());
+    EXPECT_EQ(bus.regs[0xFA], 0x20);  // INT pulses on each change
+    EXPECT_EQ(bus.regs[0xED], 20);    // for 2 ms
+    EXPECT_EQ(p.x, 0x0123);
+    EXPECT_EQ(p.y, 0x0045);
+
+    bus.regs[0x02] = 0;  // lifted
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+    bus.awake = false;  // and asleep again
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+}
+
+TEST(CST816Touch, AReadCaughtMidUpdateIsNotATouch)
+{
+    FakeCST816Bus bus;
+    bus.awake = true;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    bus.Touch(10, 20);
+    bus.regs[0x02] = 7;  // nonsense count: it reports one finger at most
+    TouchPoint p;
+    EXPECT_EQ(touch.Read(&p, 1), 0);
 }
 
 // --- PanelTouchInput ---

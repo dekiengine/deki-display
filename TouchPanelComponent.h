@@ -9,9 +9,11 @@ namespace DekiDisplay
 {
 
 /// The touch controllers this package reads. Scenes store the name.
+/// CST816 covers the CST816S and CST816T.
 enum class TouchController : uint8_t
 {
-    GT911 = 0
+    GT911 = 0,
+    CST816 = 1
 };
 
 enum class TouchRotation : uint8_t
@@ -35,8 +37,8 @@ enum class TouchRotation : uint8_t
 /// platform with no I2C (the editor, the simulator) it reports success and
 /// starts nothing.
 DEKI_CATEGORY("Display")
-DEKI_DESCRIPTION("Reads a panel's touch controller (GT911, ...) on an I2C bus with Deki's own display library, as "
-                 "pointer input.")
+DEKI_DESCRIPTION("Reads a panel's touch controller (GT911, CST816, ...) on an I2C bus with Deki's own display "
+                 "library, as pointer input.")
 class DEKI_DISPLAY_API TouchPanelComponent : public Deki::SetupComponent
 {
 public:
@@ -50,7 +52,8 @@ public:
     int32_t i2cPort = 0;
 
     DEKI_EXPORT
-    DEKI_TOOLTIP("Its I2C address; 0 takes the controller's usual one (GT911: 0x5D, falling back to 0x14)")
+    DEKI_TOOLTIP("Its I2C address; 0 takes the controller's usual one (GT911: 0x5D, falling back to 0x14; CST816: "
+                 "0x15)")
     DEKI_RANGE(0, 127)
     int32_t i2cAddress = 0;
 

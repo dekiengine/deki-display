@@ -3,6 +3,7 @@
 #include "DekiGPIO.h"   // from deki-gpio
 #include "DekiI2C.h"    // from deki-i2c
 #include "DekiInput.h"  // from deki-input
+#include "CST816Touch.h"
 #include "DisplayPanelComponent.h"
 #include "GT911Touch.h"
 #include "PanelTouchInput.h"
@@ -67,28 +68,47 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         return;
     }
 
-    auto touch = std::make_unique<GT911Touch>(bus, DekiGpio::DekiGPIO::GetCurrent(), static_cast<uint8_t>(i2cAddress),
-                                              intPin, rstPin, &Delay, &Now);
-    // A controller just powered may need a moment after the bus comes up.
-    bool started = false;
-    for (int attempt = 0; attempt < 5 && !started; ++attempt)
+    DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
+    const auto addressWanted = static_cast<uint8_t>(i2cAddress);
+    std::unique_ptr<ITouchController> touch;
+    const char* name = "GT911";
+    uint8_t address = 0;
+    if (controller == TouchController::CST816)
     {
-        started = touch->Init();
+        // It sleeps, unanswering, until touched, so it cannot be found now:
+        // it is set up when it first answers, and a read it does not answer
+        // is no touch (a NACK costs no timeout).
+        auto cst = std::make_unique<CST816Touch>(bus, gpio, addressWanted, intPin, rstPin, &Delay);
+        cst->Init();
+        name = "CST816";
+        address = addressWanted ? addressWanted : CST816Touch::kAddress;
+        touch = std::move(cst);
+    }
+    else
+    {
+        auto gt = std::make_unique<GT911Touch>(bus, gpio, addressWanted, intPin, rstPin, &Delay, &Now);
+        // A controller just powered may need a moment after the bus comes up.
+        bool started = false;
+        for (int attempt = 0; attempt < 5 && !started; ++attempt)
+        {
+            started = gt->Init();
+            if (!started)
+            {
+                Delay(50);
+            }
+        }
         if (!started)
         {
-            Delay(50);
+            // Not registered: reading a controller that does not answer costs
+            // an I2C timeout every frame. The board runs on without touch.
+            DEKI_LOG_ERROR("TouchPanelComponent: the GT911 on I2C port %d does not answer (0x5D or 0x14); no touch",
+                           (int)i2cPort);
+            finish(true);
+            return;
         }
+        address = gt->GetAddress();
+        touch = std::move(gt);
     }
-    if (!started)
-    {
-        // Not registered: reading a controller that does not answer costs an
-        // I2C timeout every frame. The board runs on without touch.
-        DEKI_LOG_ERROR("TouchPanelComponent: the GT911 on I2C port %d does not answer (0x5D or 0x14); no touch",
-                       (int)i2cPort);
-        finish(true);
-        return;
-    }
-    const uint8_t address = touch->GetAddress();
 
     TouchMapper mapper;
     mapper.xMin = xMin;
@@ -107,7 +127,7 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         finish(false);
         return;
     }
-    DEKI_LOG_INFO("TouchPanelComponent: GT911 at 0x%02X on I2C port %d (INT %d, RST %d), as touch input", address,
+    DEKI_LOG_INFO("TouchPanelComponent: %s at 0x%02X on I2C port %d (INT %d, RST %d), as touch input", name, address,
                   (int)i2cPort, (int)intPin, (int)rstPin);
 
     // Touch outlives scene changes, as the display does.
