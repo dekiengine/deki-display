@@ -1,0 +1,22 @@
+{
+  "id": "deki-display",
+  "displayName": "Display",
+  "minEngine": "0.18.0",
+  "buildDefine": "DEKI_PACKAGE_DISPLAY",
+  "requires": [
+    "deki-spi",
+    "deki-gpio"
+  ],
+  "features": [
+    {
+      "id": "panel",
+      "displayName": "Display Panel",
+      "buildDefine": "DEKI_FEATURE_DISPLAY_PANEL",
+      "defaultEnabled": true,
+      "componentTypes": [
+        "DisplayPanelComponent"
+      ]
+    }
+  ],
+  "dependencies": {}
+}
