@@ -7,8 +7,7 @@
     "deki-spi",
     "deki-gpio",
     "deki-i2c",
-    "deki-input",
-    "deki-rendering"
+    "deki-input"
   ],
   "features": [
     {

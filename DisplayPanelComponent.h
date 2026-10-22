@@ -124,13 +124,6 @@ public:
     DEKI_RANGE(-1, 48)
     int32_t rstPin = -1;
 
-    DEKI_EXPORT
-    DEKI_TOOLTIP("The panel's tearing-effect (TE) output (-1 = not connected). With it, frames never tear: each "
-                 "starts as the panel starts a refresh, and goes in the panel's own row order, a turned screen "
-                 "turned as it is sent and drawn in strips of columns")
-    DEKI_RANGE(-1, 48)
-    int32_t tePin = -1;
-
     // ========== Backlight ==========
 
     DEKI_GROUP("Backlight")
