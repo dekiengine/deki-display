@@ -2,6 +2,7 @@
 
 #include "DekiGPIO.h"  // from deki-gpio
 #include <deki/LogSystem.h>
+#include <deki/Time.h>
 #include <deki/providers/Memory.h>
 
 #include <algorithm>
@@ -112,9 +113,14 @@ bool PanelDisplay::Start(const Options& options)
     }
     m_WireBigEndian = m_IO.PixelsBigEndian();
     m_SwapRGB565 = m_WireBigEndian != Deki::kRGB565BigEndian;
+    m_PanelWidth = m_Width;
+    m_PanelHeight = m_Height;
+    // May turn the controller to its own orientation, so before anything is
+    // sized by it or sent.
+    StartTearFree(options.tePin);
 
     // A band is at most one transfer, and a whole number of rows.
-    const size_t rowBytes = static_cast<size_t>(m_Width) * sizeof(uint16_t);
+    const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
     const size_t maxRows = std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes);
     m_BandRows = static_cast<int32_t>(std::clamp<size_t>(options.bandRows > 0 ? options.bandRows : 16, 1, maxRows));
     if (!EnsureBands())
@@ -177,6 +183,15 @@ void PanelDisplay::Shutdown()
     // uses goes.
     SetAsyncPresent(false);
     m_IO.WaitPixels(0);
+    if (m_TePin >= 0)
+    {
+        DekiRendering::RegisterScanOrderedDisplay(this, nullptr);
+        if (DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent())
+        {
+            gpio->StopCounting(m_TePin);
+        }
+        m_TePin = -1;
+    }
     FreeBands();
     for (uint16_t*& buffer : m_RenderBuffers)
     {
@@ -192,7 +207,7 @@ bool PanelDisplay::EnsureBands()
     {
         return true;
     }
-    const size_t bytes = static_cast<size_t>(m_Width) * m_BandRows * sizeof(uint16_t);
+    const size_t bytes = static_cast<size_t>(m_PanelWidth) * m_BandRows * sizeof(uint16_t);
     for (uint16_t*& band : m_Band)
     {
         if (band)
@@ -228,16 +243,16 @@ void PanelDisplay::Clear()
     {
         return;
     }
-    const size_t rowBytes = static_cast<size_t>(m_Width) * sizeof(uint16_t);
+    const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
     memset(m_Band[0], 0, rowBytes * m_BandRows);
     m_Controller.BeginWrite();
-    m_Controller.SetWindow(0, 0, m_Width, m_Height);
+    m_Controller.SetWindow(0, 0, m_PanelWidth, m_PanelHeight);
     // One band of black, sent as often as the screen needs; it never changes,
     // so nothing waits for it to be free.
-    for (int32_t y = 0; y < m_Height; y += m_BandRows)
+    for (int32_t y = 0; y < m_PanelHeight; y += m_BandRows)
     {
-        const int32_t rows = std::min(m_BandRows, m_Height - y);
-        m_IO.QueuePixels(m_Band[0], rowBytes * rows, y + rows < m_Height);
+        const int32_t rows = std::min(m_BandRows, m_PanelHeight - y);
+        m_IO.QueuePixels(m_Band[0], rowBytes * rows, y + rows < m_PanelHeight);
     }
     m_Controller.EndWrite();
 }
@@ -267,6 +282,16 @@ void PanelDisplay::BlendOverlayRows(uint16_t* rows, size_t pitch, int width, int
             const uint16_t out = BlendOverlayPixel(bg, argb);
             dstRow[x] = swapped ? SwapBytes16(out) : out;
         }
+    }
+}
+
+void PanelDisplay::BeforeOverlayChange()
+{
+    // Turned, the worker blends the overlay into what it sends; otherwise
+    // the drawing core blended it into its copy already.
+    if (m_Turned)
+    {
+        WaitForPresents();
     }
 }
 
@@ -386,13 +411,13 @@ void PanelDisplay::PushRowsDirectBody(const uint16_t* frame, int y0, int y1)
 {
     // As long a part as the bus takes: the fewer parts, the less each one's
     // start costs.
-    const size_t rowBytes = static_cast<size_t>(m_Width) * sizeof(uint16_t);
+    const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
     const int chunkRows = static_cast<int>(std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes));
-    m_Controller.SetWindow(0, y0, m_Width, y1);
+    m_Controller.SetWindow(0, y0, m_PanelWidth, y1);
     for (int y = y0; y < y1; y += chunkRows)
     {
         const int rows = std::min(chunkRows, y1 - y);
-        m_IO.QueuePixels(frame + static_cast<size_t>(y) * m_Width, rowBytes * rows, y + rows < y1);
+        m_IO.QueuePixels(frame + static_cast<size_t>(y) * m_PanelWidth, rowBytes * rows, y + rows < y1);
         // The worker's last job finishes behind this part.
         GiveBackPendingCopy();
     }
@@ -435,6 +460,27 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
     {
         return;
     }
+    if (m_Turned)
+    {
+        if (format != Deki::ColorFormat::RGB565 || width != m_Width || height != m_Height)
+        {
+            if (!m_TurnWarned)
+            {
+                DEKI_LOG_ERROR("PanelDisplay: a turned panel is sent RGB565 frames of its own size only (got format %d, "
+                               "%dx%d)",
+                               static_cast<int>(format), width, height);
+                m_TurnWarned = true;
+            }
+            return;
+        }
+        PresentTurned(reinterpret_cast<const uint16_t*>(framebuffer), width, 0, 0, width, height, 0, m_PanelHeight,
+                      true, false);
+        if (m_RenderBuffers[1])
+        {
+            m_RenderIndex = 1 - m_RenderIndex;
+        }
+        return;
+    }
     // Async: the frame is copied for the worker, and the engine draws the
     // next while it is sent. Waits only when both copies are in use.
     // (The bands it is sent through are made here, on the drawing core: the
@@ -448,12 +494,13 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
         auto* copy = reinterpret_cast<uint16_t*>(m_Staging[index]);
         CopyToWire(copy, reinterpret_cast<const uint16_t*>(framebuffer), static_cast<size_t>(width) * height);
         BlendOverlayRows(copy, width, width, 0, height, m_WireBigEndian);
-        Post(Job{ index, 0, height, false, false });
+        Post(Job{ index, 0, height, false, false, true });
         return;
     }
     // Any other present goes after the worker's: it uses the bus and the
     // bands.
     WaitForPresents();
+    WaitForRefresh();
     // Already in the wire's order, the panel's size and with nothing to blend
     // over it: the frame goes out as it is, with no copy.
     const bool direct = format == Deki::ColorFormat::RGB565 && !m_SwapRGB565 && !HasOverlay() &&
@@ -480,6 +527,12 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
 void PanelDisplay::PresentRegions(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
                                   const Deki::Rect* rects, int32_t count)
 {
+    PresentRegionsFrom(framebuffer, width, height, format, rects, count, true);
+}
+
+void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
+                                      const Deki::Rect* rects, int32_t count, bool frameStart)
+{
     // Nothing changed on the panel, or (drawing in strips) every strip has
     // been sent already: nothing to wait for either, so the strip the worker
     // is still sending goes on while the next frame is drawn.
@@ -487,15 +540,56 @@ void PanelDisplay::PresentRegions(const uint8_t* framebuffer, int width, int hei
     {
         return;
     }
+    if (m_Turned)
+    {
+        if (format != Deki::ColorFormat::RGB565 || width != m_Width || height != m_Height)
+        {
+            if (!m_TurnWarned)
+            {
+                DEKI_LOG_ERROR("PanelDisplay: a turned panel is sent RGB565 frames of its own size only (got format %d, "
+                               "%dx%d)",
+                               static_cast<int>(format), width, height);
+                m_TurnWarned = true;
+            }
+            return;
+        }
+        // The panel rows the rectangles fall in: one run from the first to
+        // the last, which the whole frame has every pixel of.
+        int first = m_PanelHeight;
+        int last = 0;
+        for (int32_t i = 0; i < count; ++i)
+        {
+            if (rects[i].Empty())
+            {
+                continue;
+            }
+            int f = 0;
+            int l = 0;
+            PanelRowsOf(rects[i], &f, &l);
+            first = std::min(first, f);
+            last = std::max(last, l);
+        }
+        PresentTurned(reinterpret_cast<const uint16_t*>(framebuffer), width, 0, 0, width, height, first, last,
+                      frameStart, false);
+        if (m_RenderBuffers[1])
+        {
+            m_RenderIndex = 1 - m_RenderIndex;
+        }
+        return;
+    }
     // One rectangle (a strip of a frame drawn in strips, or a frame where one
     // thing moved) goes to the worker, and the engine draws on while it is
     // sent.
     if (count == 1 && !rects[0].Empty() &&
-        PresentRowsAsync(framebuffer, width, height, format, rects[0].top, rects[0].bottom))
+        PresentRowsAsync(framebuffer, width, height, format, rects[0].top, rects[0].bottom, frameStart))
     {
         return;
     }
     WaitForPresents();
+    if (frameStart)
+    {
+        WaitForRefresh();
+    }
 
     // A window here spans whole rows, since the framebuffer's rows are only
     // contiguous at full width, so rectangles become row bands: widened to
@@ -594,6 +688,7 @@ bool PanelDisplay::UpdateUIOverlay(void* overlay, int32_t x, int32_t y, int32_t 
         return false;
     }
     auto* o = static_cast<UIOverlay*>(overlay);
+    BeforeOverlayChange();
     if (x < 0 || y < 0 || width < 0 || height < 0 || x + width > o->width || y + height > o->height)
     {
         DEKI_LOG_WARNING("PanelDisplay::UpdateUIOverlay: bounds (%d,%d,%d,%d) outside the %dx%d overlay", x, y, width,
@@ -626,6 +721,7 @@ void PanelDisplay::DestroyUIOverlay(void* overlay)
         return;
     }
     auto* o = static_cast<UIOverlay*>(overlay);
+    BeforeOverlayChange();
     if (o == m_ActiveOverlay)
     {
         // The rows it covered are sent again without it.
@@ -642,6 +738,7 @@ void PanelDisplay::SetActiveUIOverlay(void* overlay)
     {
         return;
     }
+    BeforeOverlayChange();
     m_ActiveOverlay = static_cast<UIOverlay*>(overlay);
     OverlayChanged();
 }
@@ -652,6 +749,7 @@ void PanelDisplay::ClearActiveUIOverlay()
     {
         return;
     }
+    BeforeOverlayChange();
     memset(m_ActiveOverlay->buffer, 0,
            static_cast<size_t>(m_ActiveOverlay->width) * m_ActiveOverlay->height * sizeof(uint32_t));
     std::fill(m_ActiveOverlay->spanRight.begin(), m_ActiveOverlay->spanRight.end(), 0);
@@ -805,6 +903,7 @@ void PanelDisplay::RunWorker()
     // frames.
     bool held = false;
     uint32_t jobs = 0;
+    bool waitedForRefresh = false;  // blocked since the last pause
     for (;;)
     {
         Job job{};
@@ -830,18 +929,44 @@ void PanelDisplay::RunWorker()
         // At full speed the next job is always waiting, so the worker never
         // blocks and the core's idle task never runs, which a task watchdog
         // reports. A pause every 30 jobs lets it; what is queued goes on.
-        if (++jobs % 30 == 0 && s_Worker && s_Worker->yield)
+        // Waiting for the panel's refresh blocks every frame, and lets the
+        // idle task run then: a pause would only make a frame miss its
+        // refresh.
+        if (++jobs % 30 == 0)
         {
-            s_Worker->yield();
+            if (!waitedForRefresh && s_Worker && s_Worker->yield)
+            {
+                s_Worker->yield();
+            }
+            waitedForRefresh = false;
+        }
+        // A frame waiting for the panel's refresh starts with the last one
+        // sent and the bus let go, so the wait holds up nothing else on it.
+        if (job.frameStart && IsTearFree())
+        {
+            if (held)
+            {
+                m_Controller.EndWrite();
+                held = false;
+            }
+            GiveBackPendingCopy();
+            WaitForRefresh();
+            waitedForRefresh = true;
         }
         if (!held)
         {
             m_Controller.BeginWrite();
             held = true;
         }
-        if (job.strip)
+        if (job.raw)
         {
-            SendStripBody(m_Strip[job.index], job.top, job.bottom - job.top);
+            const uint16_t* src =
+                job.strip ? m_Strip[job.index] : reinterpret_cast<const uint16_t*>(m_Staging[job.index]);
+            PushPanelRowsBody(src, job.srcStride, job.srcLeft, job.srcTop, job.top, job.bottom);
+        }
+        else if (job.strip)
+        {
+            SendStripBody(m_Strip[job.index], job.top, job.bottom - job.top, !job.wire);
         }
         else
         {
@@ -923,7 +1048,7 @@ bool PanelDisplay::EnsureStrips(int rows)
     {
         return true;
     }
-    const size_t bytes = static_cast<size_t>(m_Width) * rows * sizeof(uint16_t);
+    const size_t bytes = static_cast<size_t>(m_PanelWidth) * rows * sizeof(uint16_t);
     if (bytes > kMaxStripBytes)
     {
         return false;
@@ -958,16 +1083,17 @@ void PanelDisplay::FreeStrips()
     m_StripRows = 0;
 }
 
-void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows)
+void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows, bool swap)
 {
-    const int w = m_Width;
+    const int w = m_PanelWidth;
     const size_t rowBytes = static_cast<size_t>(w) * sizeof(uint16_t);
     // The strip goes out in chunks, each queued as soon as it is ready. With
     // bytes to swap, the chunks are bands' size and each is swapped while the
     // one before it is on the wire, so a strip costs about its transfer
     // instead of its swap and then its transfer.
+    swap = swap && m_SwapRGB565;
     int chunkRows = static_cast<int>(std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes));
-    if (m_SwapRGB565)
+    if (swap)
     {
         chunkRows = std::min(chunkRows, static_cast<int>(m_BandRows));
     }
@@ -976,7 +1102,7 @@ void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows)
     {
         const int n = std::min(chunkRows, rows - y);
         uint16_t* chunk = strip + static_cast<size_t>(y) * w;
-        if (m_SwapRGB565)
+        if (swap)
         {
             SwapPixels(chunk, static_cast<size_t>(w) * n);
         }
@@ -986,7 +1112,7 @@ void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows)
 }
 
 bool PanelDisplay::PresentRowsAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
-                                    int top, int bottom)
+                                    int top, int bottom, bool frameStart)
 {
     if (!CanPresentAsync(framebuffer, width, height, format))
     {
@@ -1028,8 +1154,320 @@ bool PanelDisplay::PresentRowsAsync(const uint8_t* framebuffer, int width, int h
         CopyToWire(copy, rows, pixels);
         BlendOverlayRows(copy, width, width, top, bottom, m_WireBigEndian);
     }
-    Post(Job{ index, top, bottom, strip, false });
+    Post(Job{ index, top, bottom, strip, false, frameStart });
     return true;
+}
+
+// ---- Tear-free --------------------------------------------------------------
+
+namespace
+{
+// A panel refreshes at 30 to 60 Hz: a TE line silent for this long is not
+// wired, or not pulsing.
+constexpr uint32_t kRefreshTimeoutMs = 50;
+constexpr uint8_t kCmdTeOn = 0x35;
+constexpr uint8_t kMadctlMY = 0x80;
+constexpr uint8_t kMadctlMV = 0x20;
+}  // namespace
+
+void PanelDisplay::StartTearFree(int32_t tePin)
+{
+    m_TePin = -1;
+    m_TeLost = false;
+    m_Turned = false;
+    m_ToScreen = PixelMap{};
+    m_ToPanel = PixelMap{};
+    m_ScanOrder = DekiRendering::ScanOrder::RowsDown;
+    if (tePin < 0)
+    {
+        return;
+    }
+    DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
+    if (!gpio || !gpio->CountEdges(tePin, DekiGpio::Edge::Rising, DekiGpio::Pull::None))
+    {
+        DEKI_LOG_WARNING("PanelDisplay: the TE pin (GPIO %d) cannot be read here; frames are sent as they are drawn",
+                         static_cast<int>(tePin));
+        return;
+    }
+    m_TePin = tePin;
+    // TE on, pulsing once a refresh, as the refresh starts.
+    const uint8_t verticalOnly = 0x00;
+    m_Controller.SendCommand(kCmdTeOn, &verticalOnly, 1);
+
+    // Shown turned or upside down, the screen's rows are not the panel's: the
+    // controller goes back to its own orientation and the screen is turned
+    // here, so what is sent is in the order the panel refreshes.
+    const uint8_t rotation = m_Controller.GetRotation();
+    const ControllerInfo& info = m_Controller.GetInfo();
+    const uint8_t own = info.madctl[0];
+    if (rotation != 0)
+    {
+        if (own & (kMadctlMY | kMadctlMV))
+        {
+            DEKI_LOG_WARNING("PanelDisplay: the %s's own orientation is not its refresh order; the screen is turned "
+                             "by the controller and can tear",
+                             info.name);
+        }
+        else
+        {
+            const PanelConfig& c = m_Controller.GetConfig();
+            const PixelMap screenToPanel = MadctlMap(info.madctl[rotation & 7], c.panelWidth, c.panelHeight);
+            const PixelMap ownToPanel = MadctlMap(own, c.panelWidth, c.panelHeight);
+            m_ToPanel = screenToPanel.Then(ownToPanel.Inverse());
+            m_ToScreen = m_ToPanel.Inverse();
+            m_Controller.SetRotation(0);
+            m_PanelWidth = m_Controller.GetWidth();
+            m_PanelHeight = m_Controller.GetHeight();
+            m_Turned = true;
+        }
+    }
+    // How the screen goes as the panel's rows go: the order strips are asked
+    // for in.
+    if (m_ToScreen.yy != 0)
+    {
+        m_ScanOrder = m_ToScreen.yy > 0 ? DekiRendering::ScanOrder::RowsDown : DekiRendering::ScanOrder::RowsUp;
+    }
+    else
+    {
+        m_ScanOrder =
+            m_ToScreen.xy > 0 ? DekiRendering::ScanOrder::ColumnsRight : DekiRendering::ScanOrder::ColumnsLeft;
+    }
+    DekiRendering::RegisterScanOrderedDisplay(this, this);
+    static const char* const kOrders[] = { "rows down", "rows up", "columns left to right", "columns right to left" };
+    DEKI_LOG_INFO("PanelDisplay: frames start on the panel's refresh (TE on GPIO %d) and go in its own row order: "
+                  "%s of the screen%s",
+                  static_cast<int>(tePin), kOrders[static_cast<int>(m_ScanOrder)],
+                  m_Turned ? ", turned here" : "");
+}
+
+void PanelDisplay::WaitForRefresh()
+{
+    if (m_TePin < 0 || m_TeLost)
+    {
+        return;
+    }
+    DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
+    if (gpio && gpio->WaitForEdge(m_TePin, kRefreshTimeoutMs))
+    {
+        // The panel's refresh rate, said once: the TE line's edges over two
+        // seconds, as the platform counts them.
+        if (m_RefreshSince == 0)
+        {
+            gpio->TakeEdges(m_TePin);
+            m_RefreshSince = Deki::Time::GetTime() | 1;
+        }
+        else if (!m_RefreshSaid)
+        {
+            const uint32_t elapsed = Deki::Time::GetElapsed(m_RefreshSince);
+            if (elapsed >= 2000)
+            {
+                const uint32_t edges = gpio->TakeEdges(m_TePin);
+                DEKI_LOG_INFO("PanelDisplay: the panel refreshes at %.1f Hz", 1000.0 * edges / elapsed);
+                m_RefreshSaid = true;
+            }
+        }
+        return;
+    }
+    m_TeLost = true;
+    DEKI_LOG_WARNING("PanelDisplay: no refresh pulse on the TE pin (GPIO %d) in %u ms; frames are sent without waiting "
+                     "for one, and can tear",
+                     static_cast<int>(m_TePin), static_cast<unsigned>(kRefreshTimeoutMs));
+}
+
+void PanelDisplay::PanelRowsOf(const Deki::Rect& rect, int* first, int* last) const
+{
+    int32_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    m_ToPanel.Apply(rect.left, rect.top, x0, y0);
+    m_ToPanel.Apply(rect.right - 1, rect.bottom - 1, x1, y1);
+    *first = std::clamp<int>(std::min(y0, y1), 0, m_PanelHeight);
+    *last = std::clamp<int>(std::max(y0, y1) + 1, 0, m_PanelHeight);
+}
+
+void PanelDisplay::GatherPanelRows(uint16_t* dst, const uint16_t* src, int32_t stride, int32_t left, int32_t top,
+                                   int first, int last) const
+{
+    const PixelMap& t = m_ToScreen;
+    // Along a panel row the screen moves by (t.xx, t.yx): one step through
+    // the source.
+    const ptrdiff_t step = t.xx + static_cast<ptrdiff_t>(t.yx) * stride;
+    const int w = m_PanelWidth;
+    const UIOverlay* overlay = HasOverlay() ? m_ActiveOverlay : nullptr;
+    for (int py = first; py < last; ++py)
+    {
+        int32_t sx = 0, sy = 0;
+        t.Apply(0, py, sx, sy);
+        const uint16_t* p = src + static_cast<ptrdiff_t>(sy - top) * stride + (sx - left);
+        uint16_t* d = dst + static_cast<size_t>(py - first) * w;
+        if (m_SwapRGB565)
+        {
+            for (int k = 0; k < w; ++k, p += step)
+            {
+                d[k] = SwapBytes16(*p);
+            }
+        }
+        else
+        {
+            for (int k = 0; k < w; ++k, p += step)
+            {
+                d[k] = *p;
+            }
+        }
+        if (!overlay)
+        {
+            continue;
+        }
+        // The overlay is in screen pixels, from its top-left corner.
+        for (int k = 0; k < w; ++k)
+        {
+            const int32_t x = sx + k * t.xx;
+            const int32_t y = sy + k * t.yx;
+            if (y < 0 || y >= overlay->height || x < overlay->spanLeft[y] || x >= overlay->spanRight[y])
+            {
+                continue;
+            }
+            const uint32_t argb = overlay->buffer[static_cast<size_t>(y) * overlay->width + x];
+            if ((argb & 0xFF000000) == 0)
+            {
+                continue;
+            }
+            const uint16_t bg = m_WireBigEndian ? SwapBytes16(d[k]) : d[k];
+            const uint16_t out = BlendOverlayPixel(bg, argb);
+            d[k] = m_WireBigEndian ? SwapBytes16(out) : out;
+        }
+    }
+}
+
+void PanelDisplay::PushPanelRowsBody(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int first,
+                                     int last)
+{
+    if (!EnsureBands())
+    {
+        return;
+    }
+    const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
+    m_Controller.SetWindow(0, first, m_PanelWidth, last);
+    for (int y = first; y < last; y += m_BandRows)
+    {
+        const int rows = std::min(static_cast<int>(m_BandRows), last - y);
+        // The band about to be filled was queued two bands ago.
+        m_IO.WaitPixels(1);
+        uint16_t* band = m_Band[m_BandIndex];
+        GatherPanelRows(band, src, stride, left, top, y, y + rows);
+        m_IO.QueuePixels(band, rowBytes * rows, y + rows < last);
+        m_BandIndex = 1 - m_BandIndex;
+        GiveBackPendingCopy();
+    }
+}
+
+void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int32_t srcWidth,
+                                 int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy)
+{
+    if (last <= first)
+    {
+        return;
+    }
+    if (m_Async)
+    {
+        // Copied as it was drawn, and turned on the worker, a band at a time
+        // while the band before it is on the wire: turning reads the screen
+        // across its rows, which costs the drawing core several milliseconds a
+        // frame and the worker nothing it was not waiting anyway. A strip goes
+        // to one of the internal strip copies, anything else to a frame copy.
+        // (The worker never allocates: its bands are made here.)
+        if (!EnsureBands())
+        {
+            return;
+        }
+        const size_t pixels = static_cast<size_t>(srcWidth) * srcHeight;
+        const bool strip = stripCopy && pixels % m_PanelWidth == 0 &&
+                           EnsureStrips(static_cast<int>(pixels / m_PanelWidth));
+        const int index = TakeCopy();
+        uint16_t* dst = strip ? m_Strip[index] : reinterpret_cast<uint16_t*>(m_Staging[index]);
+        if (stride == srcWidth)
+        {
+            memcpy(dst, src, pixels * sizeof(uint16_t));
+        }
+        else
+        {
+            for (int32_t y = 0; y < srcHeight; ++y)
+            {
+                memcpy(dst + static_cast<size_t>(y) * srcWidth, src + static_cast<size_t>(y) * stride,
+                       static_cast<size_t>(srcWidth) * sizeof(uint16_t));
+            }
+        }
+        Job job{ index, first, last, strip, false, frameStart };
+        job.raw = true;
+        job.srcLeft = left;
+        job.srcTop = top;
+        job.srcStride = srcWidth;
+        Post(job);
+        return;
+    }
+    if (frameStart)
+    {
+        WaitForRefresh();
+    }
+    m_Controller.BeginWrite();
+    PushPanelRowsBody(src, stride, left, top, first, last);
+    m_Controller.EndWrite();
+}
+
+void PanelDisplay::PresentStrip(const DekiRendering::ScanStrip& s)
+{
+    if (!m_Initialized || !s.pixels || s.changed.Empty())
+    {
+        return;
+    }
+    if (!m_Turned)
+    {
+        // Strips of the panel's own rows: rows [strip.top, strip.bottom) of a
+        // frame the screen's width, handed over as that frame.
+        if (s.stride != m_Width || s.strip.left != 0)
+        {
+            DEKI_LOG_ERROR("PanelDisplay: a strip of rows must be the screen's width");
+            return;
+        }
+        const size_t bpp = Deki::FrameBufferBytes(s.format, 1, 1);
+        const auto* frameBase = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(s.pixels) -
+                                                                 static_cast<uintptr_t>(s.strip.top) * s.stride * bpp);
+        PresentRegionsFrom(frameBase, m_Width, m_Height, s.format, &s.changed, 1, s.firstOfFrame);
+        return;
+    }
+    if (s.format != Deki::ColorFormat::RGB565)
+    {
+        if (!m_TurnWarned)
+        {
+            DEKI_LOG_ERROR("PanelDisplay: a turned panel is sent RGB565 strips only (got format %d)",
+                           static_cast<int>(s.format));
+            m_TurnWarned = true;
+        }
+        return;
+    }
+    // Whole panel rows go out, so the strip must hold every screen pixel of
+    // the panel rows it falls in: a strip cut along the scan order does.
+    int first = 0;
+    int last = 0;
+    PanelRowsOf(s.strip, &first, &last);
+    int32_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    m_ToScreen.Apply(0, first, x0, y0);
+    m_ToScreen.Apply(m_PanelWidth - 1, last - 1, x1, y1);
+    if (std::min(x0, x1) < s.strip.left || std::max(x0, x1) >= s.strip.right || std::min(y0, y1) < s.strip.top ||
+        std::max(y0, y1) >= s.strip.bottom)
+    {
+        if (!m_TurnWarned)
+        {
+            DEKI_LOG_ERROR("PanelDisplay: a strip not cut along the panel's rows cannot be sent turned");
+            m_TurnWarned = true;
+        }
+        return;
+    }
+    int changedFirst = 0;
+    int changedLast = 0;
+    PanelRowsOf(s.changed, &changedFirst, &changedLast);
+    first = std::max(first, changedFirst);
+    last = std::min(last, changedLast);
+    PresentTurned(reinterpret_cast<const uint16_t*>(s.pixels), s.stride, s.strip.left, s.strip.top, s.strip.Width(),
+                  s.strip.Height(), first, last, s.firstOfFrame, true);
 }
 
 }  // namespace DekiDisplay

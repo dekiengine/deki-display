@@ -150,6 +150,7 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     options.doubleBuffer = doubleBuffer;
     options.backlightPin = blPin;
     options.backlightInvert = blInvert;
+    options.tePin = tePin;
     if (!panel->display->Start(options))
     {
         finish(false);

@@ -50,3 +50,17 @@ alongside one that has them.
 - Async present works with render buffers (`usePsram`, `doubleBuffer`) too:
   the worker sends a copy, so the engine never draws into what is being
   sent.
+- Tear-free presenting: `DisplayPanelComponent`'s `tePin`, the panel's
+  tearing-effect output. A panel refreshes its own rows one after another,
+  and a frame written while the refresh passes shows half of each frame.
+  With TE on (`0x35`), each frame starts as the panel starts a refresh, and
+  goes in the panel's own row order, which a write outruns the refresh in.
+  A screen shown turned is turned as it is sent: the controller stays at its
+  own orientation, and the renderer is asked for strips of columns in the
+  order the panel refreshes them (deki-rendering's `IScanOrderedDisplay`).
+  With async present the worker does the turning, a band at a time while
+  the band before it is on the wire. Whole frames and strips both. A TE
+  line that never pulses is said once in the log, and frames go on without
+  waiting. On a LilyGO T-Display S3 AMOLED (its panel refreshes at
+  59.6 Hz): 59.5 fps in strips with no tearing, and 28.6 in whole frames,
+  which take 25 ms to draw in PSRAM.

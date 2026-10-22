@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -11,6 +12,8 @@
 
 #include "IPanelIO.h"
 #include "PanelController.h"
+#include "PanelTurn.h"
+#include "ScanOrderedDisplay.h"  // from deki-rendering
 
 namespace DekiDisplay
 {
@@ -24,7 +27,18 @@ namespace DekiDisplay
 /// the band before it is on the wire, so the engine's framebuffer is never
 /// changed. One window covers each run of rows, and the bands stream into
 /// it.
-class PanelDisplay : public Deki::IDisplay
+///
+/// With the panel's tearing-effect line wired (Options::tePin) frames never
+/// tear. A panel refreshes its own rows one after another, at its own rate;
+/// a frame that is written while the refresh passes shows half old and half
+/// new. So each frame starts when the TE line says a refresh starts, and goes
+/// out in the panel's own row order, which a write outruns a refresh in. A
+/// panel shown turned (landscape on a portrait panel) has its rows across
+/// the screen's columns: the controller is then kept at its own orientation
+/// and the screen is turned here as it is sent, and the renderer is asked
+/// (IScanOrderedDisplay) for strips of columns, in the order the panel
+/// refreshes them.
+class PanelDisplay : public Deki::IDisplay, public DekiRendering::IScanOrderedDisplay
 {
 public:
     struct Options
@@ -42,6 +56,9 @@ public:
         int32_t backlightPin = -1;
         /// The backlight is on when the pin is low.
         bool backlightInvert = false;
+        /// The panel's tearing-effect output, -1 for none. With it, frames
+        /// are sent in step with the panel's refresh, in its own row order.
+        int32_t tePin = -1;
     };
 
     PanelDisplay(PanelController& controller, IPanelIO& io);
@@ -74,6 +91,17 @@ public:
     void ClearActiveUIOverlay() override;
     uint8_t* GetRenderBuffer(int32_t* width, int32_t* height) override;
     void SetBacklight(bool on) override;
+
+    // DekiRendering::IScanOrderedDisplay, offered while frames wait for the
+    // tearing-effect line.
+    DekiRendering::ScanOrder GetScanOrder() const override { return m_ScanOrder; }
+    void PresentStrip(const DekiRendering::ScanStrip& strip) override;
+
+    /// Frames start on the panel's refresh (a TE pin is set and pulsing).
+    bool IsTearFree() const { return m_TePin >= 0 && !m_TeLost; }
+    /// The screen is turned here as it is sent: the controller stays at its
+    /// own orientation.
+    bool IsTurned() const { return m_Turned; }
 
     /// Sends a raw command to the panel between presents, for tuning one
     /// live (VCOM, gamma).
@@ -121,7 +149,12 @@ public:
 private:
     // What the worker sends: rows [top, bottom) of the frame in
     // m_Staging[index], or, for a strip, the rows held from the start of
-    // m_Strip[index]; or the order to stop.
+    // m_Strip[index]; or the order to stop. Rows are the panel's (the
+    // screen's unless turned). frameStart: wait for the panel's refresh
+    // first. wire: the strip is in the wire's byte order already. raw: the
+    // copy holds screen pixels as drawn, the pixel at screen (srcLeft,
+    // srcTop) first and srcStride to a row, which the worker turns into the
+    // panel's rows as it sends them.
     struct Job
     {
         int index;
@@ -129,6 +162,12 @@ private:
         int bottom;
         bool strip;
         bool stop;
+        bool frameStart = false;
+        bool wire = false;
+        bool raw = false;
+        int srcLeft = 0;
+        int srcTop = 0;
+        int srcStride = 0;
     };
     static void WorkerMain(void* self);
     void RunWorker();
@@ -145,12 +184,12 @@ private:
     // Copies rows [top, bottom) of the frame for the worker and queues them.
     // False when this present cannot go that way.
     bool PresentRowsAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format, int top,
-                          int bottom);
+                          int bottom, bool frameStart);
     bool EnsureStrips(int rows);
     void FreeStrips();
-    // Queues a strip copy, swapped in place a chunk at a time, inside the
-    // worker's held write.
-    void SendStripBody(uint16_t* strip, int top, int rows);
+    // Queues a strip copy, swapped in place a chunk at a time unless it is
+    // in the wire's order already, inside the worker's held write.
+    void SendStripBody(uint16_t* strip, int top, int rows, bool swap);
 
     struct UIOverlay
     {
@@ -191,6 +230,37 @@ private:
     void OverlayChanged();
     void Clear();
     bool HasOverlay() const { return m_ActiveOverlay && m_ActiveOverlay->buffer; }
+    // PresentRegions, with whether the regions start a frame (each call
+    // does, but strips after a frame's first do not).
+    void PresentRegionsFrom(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
+                            const Deki::Rect* rects, int32_t count, bool frameStart);
+
+    // ---- Tear-free (Options::tePin) ----
+    // Turns TE on, and the controller to its own orientation when the screen
+    // is turned. In Start, before the panel is cleared.
+    void StartTearFree(int32_t tePin);
+    // Waits for the panel to start a refresh. A TE line that does not pulse
+    // is said once and then not waited for.
+    void WaitForRefresh();
+    // The panel rows [*first, *last) that hold the screen's `rect`.
+    void PanelRowsOf(const Deki::Rect& rect, int* first, int* last) const;
+    // Fills panel rows [first, last), whole, from screen pixels: the pixel at
+    // screen (left, top) is src[0] and screen rows are `stride` pixels apart;
+    // the panel rows need only pixels of that area. In the wire's byte order,
+    // with the overlay blended over them.
+    void GatherPanelRows(uint16_t* dst, const uint16_t* src, int32_t stride, int32_t left, int32_t top, int first,
+                         int last) const;
+    // Sends panel rows [first, last) through the bands, gathered from screen
+    // pixels as GatherPanelRows has them, inside a write the caller holds.
+    void PushPanelRowsBody(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int first, int last);
+    // A turned frame or strip, sent as drawn or queued for the worker: panel
+    // rows [first, last) of the screen pixels `src` holds, a `srcWidth` x
+    // `srcHeight` area with its top-left pixel at screen (left, top).
+    void PresentTurned(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int32_t srcWidth,
+                       int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy);
+    // The worker reads the overlay while it turns what it sends: changes to
+    // it wait for the worker first.
+    void BeforeOverlayChange();
 
     PanelController& m_Controller;
     IPanelIO& m_IO;
@@ -198,6 +268,9 @@ private:
     bool m_Initialized = false;
     int32_t m_Width = 0;
     int32_t m_Height = 0;
+    // The controller's own size: the screen's, or, turned, the panel's.
+    int32_t m_PanelWidth = 0;
+    int32_t m_PanelHeight = 0;
     // The wire takes RGB565 high byte first: CPU-order pixels are swapped.
     bool m_WireBigEndian = true;
     // An RGB565 frame (in memory's byte order) is swapped on its way out.
@@ -213,6 +286,18 @@ private:
 
     UIOverlay* m_ActiveOverlay = nullptr;
     int m_Presents = 0;
+
+    // Tear-free.
+    int32_t m_TePin = -1;
+    std::atomic<bool> m_TeLost{ false };  // set by whichever core waited
+    // Measuring the refresh rate, on whichever core waits.
+    uint32_t m_RefreshSince = 0;
+    bool m_RefreshSaid = false;
+    bool m_Turned = false;
+    PixelMap m_ToScreen;  // a panel pixel's screen pixel, turned
+    PixelMap m_ToPanel;   // and back
+    DekiRendering::ScanOrder m_ScanOrder = DekiRendering::ScanOrder::RowsDown;
+    bool m_TurnWarned = false;
 
     // Async present.
     bool m_Async = false;

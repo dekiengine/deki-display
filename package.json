@@ -1,13 +1,14 @@
 {
   "id": "deki-display",
   "displayName": "Display",
-  "minEngine": "0.18.0",
+  "minEngine": "0.19.0",
   "buildDefine": "DEKI_PACKAGE_DISPLAY",
   "requires": [
     "deki-spi",
     "deki-gpio",
     "deki-i2c",
-    "deki-input"
+    "deki-input",
+    "deki-rendering"
   ],
   "features": [
     {
