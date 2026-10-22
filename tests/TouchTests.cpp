@@ -404,6 +404,69 @@ TEST(CST816Touch, AReadCaughtMidUpdateIsNotATouch)
     EXPECT_EQ(touch.Read(&p, 1), 0);
 }
 
+// The fold: a slow drag whose samples flip about 12 pixels and back, as the
+// T-Display S3 AMOLED's CST816T does around x 386-398. What is reported never
+// goes back.
+TEST(CST816Touch, AFoldNeverMakesADragGoBack)
+{
+    FakeCST816Bus bus;
+    bus.awake = true;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    const uint16_t samples[] = { 383, 386, 392, 386, 398, 392, 395, 398, 401 };
+    std::vector<uint16_t> reported;
+    for (uint16_t x : samples)
+    {
+        bus.Touch(x, 120);
+        TouchPoint p;
+        ASSERT_EQ(touch.Read(&p, 1), 1);
+        reported.push_back(p.x);
+        EXPECT_EQ(p.y, 120);
+    }
+    EXPECT_EQ(reported, (std::vector<uint16_t>{ 383, 386, 386, 386, 392, 392, 395, 395, 398 }));
+}
+
+// A frame reads faster than the chip samples: a flip read twice is still one
+// sample, and loses to its neighbours.
+TEST(CST816Touch, ASampleReadAgainCountsOnce)
+{
+    FakeCST816Bus bus;
+    bus.awake = true;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    TouchPoint p;
+    for (uint16_t x : { 100, 102, 114, 114 })
+    {
+        bus.Touch(x, 50);
+        ASSERT_EQ(touch.Read(&p, 1), 1);
+    }
+    EXPECT_EQ(p.x, 102);
+    bus.Touch(104, 50);
+    ASSERT_EQ(touch.Read(&p, 1), 1);
+    EXPECT_EQ(p.x, 104);
+}
+
+// A new touch is where the finger is, not where the last one was.
+TEST(CST816Touch, ANewTouchStartsAfresh)
+{
+    FakeCST816Bus bus;
+    bus.awake = true;
+    CST816Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    TouchPoint p;
+    for (uint16_t x : { 10, 12, 14, 16 })
+    {
+        bus.Touch(x, 10);
+        ASSERT_EQ(touch.Read(&p, 1), 1);
+    }
+    bus.regs[0x02] = 0;  // lifted
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+    bus.Touch(300, 200);
+    ASSERT_EQ(touch.Read(&p, 1), 1);
+    EXPECT_EQ(p.x, 300);
+    EXPECT_EQ(p.y, 200);
+}
+
 // --- PanelTouchInput ---
 
 namespace
