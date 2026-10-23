@@ -221,6 +221,9 @@ private:
     size_t m_StagingBytes = 0;
     uint16_t* m_Strip[2] = { nullptr, nullptr };
     int m_StripRows = 0;
+    // The fewest rows the strip copies could not be grown to: strips that
+    // tall go through external memory without asking again (0: none failed).
+    int m_StripFailedRows = 0;
     int m_NextCopy = 0;
     // The queue of jobs (at most one per copy, plus the stop) and the copies
     // not in use, under m_Lock.

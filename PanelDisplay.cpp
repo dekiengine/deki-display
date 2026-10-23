@@ -923,26 +923,37 @@ bool PanelDisplay::EnsureStrips(int rows)
     {
         return true;
     }
+    if (m_StripFailedRows > 0 && rows >= m_StripFailedRows)
+    {
+        return false;
+    }
     const size_t bytes = static_cast<size_t>(m_Width) * rows * sizeof(uint16_t);
     if (bytes > kMaxStripBytes)
     {
         return false;
     }
-    // Growing: the worker may still be sending from the old copies.
-    WaitForPresents();
-    FreeStrips();
-    for (uint16_t*& strip : m_Strip)
+    // The new pair is made before the old one goes, and if it cannot be the
+    // old one stays, for the strips it fits. Asking again every strip once
+    // internal memory is in pieces cost more than the copies save.
+    uint16_t* grown[2] = { nullptr, nullptr };
+    for (uint16_t*& strip : grown)
     {
         strip = static_cast<uint16_t*>(Deki::Memory::AllocateDma(bytes, Deki::Memory::Internal));
         if (!strip)
         {
-            DEKI_LOG_WARNING("PanelDisplay: no internal DMA memory for two %zu-byte strip copies; strips go through "
-                             "external memory",
-                             bytes);
-            FreeStrips();
+            DEKI_LOG_WARNING("PanelDisplay: no internal DMA memory for two %zu-byte strip copies; strips of %d rows "
+                             "or more go through external memory",
+                             bytes, rows);
+            Deki::Memory::Free(grown[0]);
+            m_StripFailedRows = rows;
             return false;
         }
     }
+    // The worker may still be sending from the old copies.
+    WaitForPresents();
+    FreeStrips();
+    m_Strip[0] = grown[0];
+    m_Strip[1] = grown[1];
     m_StripRows = rows;
     DEKI_LOG_INFO("PanelDisplay: strips of up to %d rows are sent from the other core while the next is drawn", rows);
     return true;
