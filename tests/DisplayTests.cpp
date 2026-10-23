@@ -44,7 +44,8 @@ struct Event
         Start,
         Pixels,
         Pin,
-        Delay
+        Delay,
+        Wait  // for the panel's refresh (the TE line)
     } kind;
     uint8_t cmd = 0;
     std::vector<uint8_t> bytes;
@@ -113,6 +114,11 @@ public:
 class FakeGpio : public DekiGpio::IDekiGPIO
 {
 public:
+    // A TE line: edges can be counted on it, and each wait sees a pulse
+    // unless `pulsing` is off.
+    int tePin = -1;
+    bool pulsing = true;
+
     bool SetOutput(int pin, bool high) override { return Write(pin, high); }
     bool SetInput(int, DekiGpio::Pull) override { return true; }
     bool Write(int pin, bool high) override
@@ -124,9 +130,19 @@ public:
         return true;
     }
     bool Read(int) override { return false; }
-    bool CountEdges(int, DekiGpio::Edge, DekiGpio::Pull) override { return false; }
+    bool CountEdges(int pin, DekiGpio::Edge edge, DekiGpio::Pull) override
+    {
+        return pin == tePin && edge == DekiGpio::Edge::Rising;
+    }
     uint32_t TakeEdges(int) override { return 0; }
     void StopCounting(int) override {}
+    bool WaitForEdge(int pin, uint32_t) override
+    {
+        Event e{ Event::Wait };
+        e.pin = pin;
+        g_Events.push_back(e);
+        return pin == tePin && pulsing;
+    }
 };
 
 std::vector<Event> Of(Event::Kind kind)
@@ -349,9 +365,9 @@ TEST_F(DisplayTest, StartUpIsTheSequenceThenInversionColourAndRotation)
     ASSERT_EQ(cmds.size(), seq.size() + 3);
     EXPECT_EQ(cmds[0], "11");
     EXPECT_EQ(cmds[4], "BB 19");
-    EXPECT_EQ(cmds[seq.size()], "21");          // INVON
-    EXPECT_EQ(cmds[seq.size() + 1], "3A 55");   // RGB565
-    EXPECT_EQ(cmds[seq.size() + 2], "36 64");   // MADCTL: MV|MX|MH, red first
+    EXPECT_EQ(cmds[seq.size()], "21");         // INVON
+    EXPECT_EQ(cmds[seq.size() + 1], "3A 55");  // RGB565
+    EXPECT_EQ(cmds[seq.size() + 2], "36 64");  // MADCTL: MV|MX|MH, red first
     EXPECT_EQ(panel.GetWidth(), 320);
     EXPECT_EQ(panel.GetHeight(), 240);
     EXPECT_EQ(io.depth, 0);
@@ -934,7 +950,9 @@ bool StartThread(void (*run)(void*), void* arg)
         .detach();
     return true;
 }
-void NoYield() {}
+void NoYield()
+{
+}
 const PanelDisplay::WorkerBackend kThreadWorker{ &StartThread, &NoYield };
 
 }  // namespace
@@ -1055,7 +1073,7 @@ TEST_F(DisplayTest, OtherPresentsWaitForTheWorker)
     display.PresentRegions(frame.data(), 2, 4, Deki::ColorFormat::RGB565, rects, 2);
     const std::vector<uint8_t> wire = Wire();
     ASSERT_EQ(wire.size(), (8u + 4u) * 2);
-    EXPECT_EQ(wire[1], 1);   // the whole frame first
+    EXPECT_EQ(wire[1], 1);  // the whole frame first
     EXPECT_EQ(wire[15], 8);
     EXPECT_EQ(wire[17], 1);  // then row 0
     EXPECT_EQ(wire[21], 7);  // and row 3
@@ -1098,4 +1116,460 @@ TEST_F(DisplayTest, APanelNeedsItsBusStartedFirst)
     DisplayPanelComponent c;
     c.spiHost = 1;
     EXPECT_FALSE(RunSetup(c));
+}
+
+// --- Tear-free (a TE pin) ---
+
+namespace
+{
+
+// A screen pixel as a recognisable value: its row in the high byte, its
+// column in the low.
+uint16_t Place(int x, int y)
+{
+    return static_cast<uint16_t>((y << 8) | x);
+}
+
+// An RGB565 frame whose every pixel is Place(x, y).
+std::vector<uint16_t> PlaceFrame(int w, int h)
+{
+    std::vector<uint16_t> out;
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            out.push_back(Place(x, y));
+        }
+    }
+    return out;
+}
+
+// The wire's pixels, high byte first, as values.
+std::vector<uint16_t> WirePixels()
+{
+    const std::vector<uint8_t> bytes = Wire();
+    std::vector<uint16_t> out;
+    for (size_t i = 0; i + 1 < bytes.size(); i += 2)
+    {
+        out.push_back(static_cast<uint16_t>((bytes[i] << 8) | bytes[i + 1]));
+    }
+    return out;
+}
+
+// A 4 x 6 RM67162 (a small T-Display S3 AMOLED) at `rotation`.
+PanelConfig SmallAmoled(uint8_t rotation)
+{
+    PanelConfig c;
+    c.controller = Controller::RM67162;
+    c.panelWidth = 4;
+    c.panelHeight = 6;
+    c.rotation = rotation;
+    return c;
+}
+
+}  // namespace
+
+TEST(PanelTurn, MadctlMapsTurnAndComeBack)
+{
+    // Rotation 1 on a 240 x 536 panel: MV then MX, so the screen's top-left
+    // pixel is the panel's top-right one and the screen's columns go down
+    // the panel's rows.
+    const PixelMap m = MadctlMap(0x60, 240, 536);
+    int32_t u = 0, v = 0;
+    m.Apply(0, 0, u, v);
+    EXPECT_EQ(u, 239);
+    EXPECT_EQ(v, 0);
+    m.Apply(535, 239, u, v);
+    EXPECT_EQ(u, 0);
+    EXPECT_EQ(v, 535);
+
+    // Every rotation of the RM67162's table comes back where it started.
+    for (uint8_t madctl : GetControllerInfo(Controller::RM67162).madctl)
+    {
+        const PixelMap there = MadctlMap(madctl, 240, 536);
+        const PixelMap round = there.Then(there.Inverse());
+        for (int32_t x : { 0, 7, 239 })
+        {
+            for (int32_t y : { 0, 100, 239 })
+            {
+                round.Apply(x, y, u, v);
+                EXPECT_EQ(u, x) << "MADCTL " << int(madctl);
+                EXPECT_EQ(v, y) << "MADCTL " << int(madctl);
+            }
+        }
+    }
+}
+
+TEST_F(DisplayTest, WithoutATePinNothingChanges)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    EXPECT_FALSE(display.IsTearFree());
+    EXPECT_FALSE(display.IsTurned());
+    EXPECT_EQ(DekiRendering::FindScanOrderedDisplay(&display), nullptr);
+    g_Events.clear();
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(6, 4));
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    EXPECT_TRUE(Of(Event::Wait).empty());
+    EXPECT_EQ(WirePixels(), PlaceFrame(6, 4)) << "the controller turns it";
+}
+
+// A frame that missed its refresh's start begins where its write cannot
+// catch that refresh up: refresh minus write, plus a millisecond's margin.
+TEST(TearFreeStart, AFrameThatMissedARefreshWaitsOnlyForItsWindow)
+{
+    constexpr uint32_t kRefresh = 16780;  // the T-Display S3 AMOLED's, 59.6 Hz
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 10500), kRefresh - 10500 + 1000);
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 3000), kRefresh - 3000 + 1000);
+    // Not known yet: the next refresh's start, as before.
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 0), kRefresh);
+    // As slow as a refresh, or slower: no start is tear-free, so at once.
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, kRefresh - 1000), 0u);
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 25000), 0u);
+    // Inside the refresh, and later the faster the write.
+    EXPECT_LT(PanelDisplay::TearFreeStartUs(kRefresh, 12000), PanelDisplay::TearFreeStartUs(kRefresh, 8000));
+}
+
+TEST_F(DisplayTest, ATurnedPanelIsSentInItsOwnRowsFromItsRefresh)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    g_Events.clear();
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+
+    // TE on, then the controller back to its own orientation.
+    const std::vector<std::string> start = Commands();
+    ASSERT_GE(start.size(), 2u);
+    EXPECT_EQ(start[0], "35 00");
+    EXPECT_EQ(start[1], "36 00");
+    EXPECT_TRUE(display.IsTearFree());
+    EXPECT_TRUE(display.IsTurned());
+    // The controller is written in its own orientation; the screen, and touch
+    // with it, stays turned.
+    EXPECT_EQ(panel.GetRotation(), 0);
+    EXPECT_EQ(panel.GetScreenRotation(), 1);
+    EXPECT_EQ(DekiRendering::FindScanOrderedDisplay(&display), &display);
+    // The panel's rows run along the screen's columns, left to right.
+    EXPECT_EQ(display.GetScanOrder(), DekiRendering::ScanOrder::ColumnsRight);
+    int32_t w = 0, h = 0;
+    display.GetDisplaySize(&w, &h);
+    EXPECT_EQ(w, 6);
+    EXPECT_EQ(h, 4);
+
+    g_Events.clear();
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(6, 4));
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+
+    // The wait comes first, then the whole panel in its own rows: panel row
+    // v is screen column v, from the screen's bottom row up.
+    ASSERT_FALSE(g_Events.empty());
+    EXPECT_EQ(g_Events.front().kind, Event::Wait);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+    std::vector<uint16_t> expected;
+    for (int v = 0; v < 6; ++v)
+    {
+        for (int u = 0; u < 4; ++u)
+        {
+            expected.push_back(Place(v, 3 - u));
+        }
+    }
+    EXPECT_EQ(WirePixels(), expected);
+    EXPECT_EQ(frame, Frame565(PlaceFrame(6, 4))) << "the frame is the engine's";
+
+    display.Shutdown();
+    EXPECT_EQ(DekiRendering::FindScanOrderedDisplay(&display), nullptr);
+}
+
+TEST_F(DisplayTest, ATurnedStripSendsThePanelRowsOfWhatChanged)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    g_Events.clear();
+
+    // Screen columns 2-3, all rows, as the renderer draws them; only part of
+    // column 2 changed.
+    std::vector<uint16_t> strip;
+    for (int y = 0; y < 4; ++y)
+    {
+        strip.push_back(Place(2, y));
+        strip.push_back(Place(3, y));
+    }
+    const std::vector<uint8_t> pixels = Frame565(strip);
+    DekiRendering::ScanStrip s;
+    s.pixels = pixels.data();
+    s.stride = 2;
+    s.strip = Deki::Rect{ 2, 0, 4, 4 };
+    s.changed = Deki::Rect{ 2, 1, 3, 3 };
+    s.firstOfFrame = true;
+    display.PresentStrip(s);
+
+    // Panel row 2, whole: what the changed pixels are in.
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B 00 02 00 02" }));
+    EXPECT_EQ(WirePixels(), (std::vector<uint16_t>{ Place(2, 3), Place(2, 2), Place(2, 1), Place(2, 0) }));
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+
+    // The frame's next strip does not wait.
+    g_Events.clear();
+    s.changed = s.strip;
+    s.firstOfFrame = false;
+    display.PresentStrip(s);
+    EXPECT_TRUE(Of(Event::Wait).empty());
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B 00 02 00 03" }));
+}
+
+TEST_F(DisplayTest, AStripAcrossThePanelsRowsIsNotSentTurned)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    g_Events.clear();
+
+    // A strip of screen rows holds part of every panel row only.
+    const std::vector<uint8_t> pixels(6 * 2 * 2, 0);
+    DekiRendering::ScanStrip s;
+    s.pixels = pixels.data();
+    s.stride = 6;
+    s.strip = Deki::Rect{ 0, 0, 6, 2 };
+    s.changed = s.strip;
+    display.PresentStrip(s);
+    EXPECT_TRUE(Of(Event::Pixels).empty());
+}
+
+TEST_F(DisplayTest, UprightThePanelOnlyWaitsForItsRefresh)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(0), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    EXPECT_TRUE(display.IsTearFree());
+    EXPECT_FALSE(display.IsTurned());
+    EXPECT_EQ(display.GetScanOrder(), DekiRendering::ScanOrder::RowsDown);
+    g_Events.clear();
+
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(4, 6));
+    display.Present(frame.data(), 4, 6, Deki::ColorFormat::RGB565);
+    ASSERT_FALSE(g_Events.empty());
+    EXPECT_EQ(g_Events.front().kind, Event::Wait);
+    EXPECT_EQ(WirePixels(), PlaceFrame(4, 6));
+
+    // Strips of rows: the first of a frame waits, the rest do not.
+    g_Events.clear();
+    DekiRendering::ScanStrip s;
+    s.pixels = frame.data() + 2 * 4 * 2;  // rows 2-3
+    s.stride = 4;
+    s.strip = Deki::Rect{ 0, 2, 4, 4 };
+    s.changed = s.strip;
+    s.firstOfFrame = true;
+    display.PresentStrip(s);
+    s.firstOfFrame = false;
+    display.PresentStrip(s);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+}
+
+TEST_F(DisplayTest, UpsideDownThePanelIsSentFromItsFirstRow)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(2), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    EXPECT_TRUE(display.IsTurned());
+    EXPECT_EQ(display.GetScanOrder(), DekiRendering::ScanOrder::RowsUp);
+    g_Events.clear();
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(4, 6));
+    display.Present(frame.data(), 4, 6, Deki::ColorFormat::RGB565);
+    std::vector<uint16_t> expected;
+    for (int y = 5; y >= 0; --y)
+    {
+        for (int x = 3; x >= 0; --x)
+        {
+            expected.push_back(Place(x, y));
+        }
+    }
+    EXPECT_EQ(WirePixels(), expected);
+}
+
+TEST_F(DisplayTest, ATeLineThatDoesNotPulseIsSaidOnceAndNotWaitedFor)
+{
+    m_Gpio.tePin = 9;
+    m_Gpio.pulsing = false;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    g_Events.clear();
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(6, 4));
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+    EXPECT_FALSE(display.IsTearFree());
+    // Still in the panel's own rows.
+    ASSERT_EQ(WirePixels().size(), 2u * 6 * 4);
+    EXPECT_EQ(WirePixels()[0], Place(0, 3));
+}
+
+TEST_F(DisplayTest, ATePinThatCannotBeReadLeavesThePanelAsItWas)
+{
+    // The fake counts edges on pin 9 only.
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 10;
+    ASSERT_TRUE(display.Start(options));
+    EXPECT_FALSE(display.IsTearFree());
+    EXPECT_FALSE(display.IsTurned());
+    EXPECT_EQ(DekiRendering::FindScanOrderedDisplay(&display), nullptr);
+}
+
+TEST_F(DisplayTest, TheOverlayLandsWhereItIsOnTheScreenWhenTurned)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    void* overlay = display.CreateUIOverlay(6, 4);
+    ASSERT_NE(overlay, nullptr);
+    std::vector<uint32_t> pixels(6 * 4, 0);
+    pixels[0 * 6 + 5] = 0xFFFFFFFF;  // screen (5, 0): opaque white
+    ASSERT_TRUE(display.UpdateUIOverlay(overlay, 0, 0, 6, 4, pixels.data()));
+    display.SetActiveUIOverlay(overlay);
+    g_Events.clear();
+
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(6, 4));
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    const std::vector<uint16_t> wire = WirePixels();
+    ASSERT_EQ(wire.size(), 24u);
+    // Screen (5, 0) is panel row 5, the row's last pixel (u = 3).
+    EXPECT_EQ(wire[5 * 4 + 3], 0xFFFF);
+    EXPECT_EQ(wire[5 * 4 + 2], Place(5, 1));
+    display.SetActiveUIOverlay(nullptr);
+    display.DestroyUIOverlay(overlay);
+}
+
+TEST_F(DisplayTest, AsyncTurnedFramesAndStripsSendTheSameBytes)
+{
+    m_Gpio.tePin = 9;
+    RecordingIO io;
+    io.bigEndian = !Deki::kRGB565BigEndian;  // swapped, in either byte order
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallAmoled(1), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+
+    // As drawn: the reference.
+    const std::vector<uint8_t> frame = Frame565(PlaceFrame(6, 4));
+    g_Events.clear();
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    const std::vector<uint8_t> asDrawn = Wire();
+
+    PanelDisplay::SetWorkerBackend(&kThreadWorker);
+    ASSERT_TRUE(display.SetAsyncPresent(true));
+    g_Events.clear();
+    display.Present(frame.data(), 6, 4, Deki::ColorFormat::RGB565);
+    display.WaitForPresents();
+    EXPECT_EQ(Wire(), asDrawn);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+
+    // The same frame as three strips of two columns: one wait, the same
+    // bytes.
+    g_Events.clear();
+    for (int left = 0; left < 6; left += 2)
+    {
+        std::vector<uint16_t> strip;
+        for (int y = 0; y < 4; ++y)
+        {
+            strip.push_back(Place(left, y));
+            strip.push_back(Place(left + 1, y));
+        }
+        const std::vector<uint8_t> pixels = Frame565(strip);
+        DekiRendering::ScanStrip s;
+        s.pixels = pixels.data();
+        s.stride = 2;
+        s.strip = Deki::Rect{ left, 0, left + 2, 4 };
+        s.changed = s.strip;
+        s.firstOfFrame = left == 0;
+        display.PresentStrip(s);  // copied before it returns
+    }
+    display.WaitForPresents();
+    EXPECT_EQ(Wire(), asDrawn);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+
+    // The same strips drawn in the strip copies it lends, sent with no copy:
+    // the same bytes. One lent and given back unused leaves the next lent
+    // copy free to draw in.
+    ASSERT_TRUE(display.LendsStripBuffers());
+    {
+        uint8_t* unused = display.GetStripBuffer(2 * 4 * sizeof(uint16_t));
+        ASSERT_NE(unused, nullptr);
+        DekiRendering::ScanStrip back;
+        back.pixels = unused;
+        back.stride = 2;
+        back.strip = Deki::Rect{ 0, 0, 2, 4 };
+        display.PresentStrip(back);  // nothing changed: given back
+    }
+    g_Events.clear();
+    for (int left = 0; left < 6; left += 2)
+    {
+        uint8_t* buffer = display.GetStripBuffer(2 * 4 * sizeof(uint16_t));
+        ASSERT_NE(buffer, nullptr);
+        std::vector<uint16_t> strip;
+        for (int y = 0; y < 4; ++y)
+        {
+            strip.push_back(Place(left, y));
+            strip.push_back(Place(left + 1, y));
+        }
+        const std::vector<uint8_t> pixels = Frame565(strip);
+        std::memcpy(buffer, pixels.data(), pixels.size());  // drawn in place
+        DekiRendering::ScanStrip s;
+        s.pixels = buffer;
+        s.stride = 2;
+        s.strip = Deki::Rect{ left, 0, left + 2, 4 };
+        s.changed = s.strip;
+        s.firstOfFrame = left == 0;
+        display.PresentStrip(s);
+    }
+    display.WaitForPresents();
+    EXPECT_EQ(Wire(), asDrawn);
+    EXPECT_EQ(Of(Event::Wait).size(), 1u);
+    ASSERT_TRUE(display.SetAsyncPresent(false));
+    EXPECT_FALSE(display.LendsStripBuffers());
+    PanelDisplay::SetWorkerBackend(nullptr);
 }

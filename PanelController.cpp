@@ -31,7 +31,9 @@ constexpr uint8_t kColmodRGB565 = 0x55;
 }  // namespace
 
 PanelController::PanelController(IPanelIO& io, DelayFn delay)
-    : m_IO(io), m_Delay(delay), m_Info(&GetControllerInfo(Controller::ST7789))
+    : m_IO(io),
+      m_Delay(delay),
+      m_Info(&GetControllerInfo(Controller::ST7789))
 {
 }
 
@@ -97,8 +99,17 @@ bool PanelController::Init(const PanelConfig& config, const InitSequence* init)
     return ok;
 }
 
+bool PanelController::WriteInOwnOrientation()
+{
+    const uint8_t screen = m_ScreenRotation;
+    const bool ok = SetRotation(0);
+    m_ScreenRotation = screen;
+    return ok;
+}
+
 bool PanelController::SetRotation(uint8_t rotation)
 {
+    m_ScreenRotation = rotation & 7;
     // Panel_LCD::setRotation with no offset rotation.
     m_Rotation = rotation & 7;
     const uint8_t r = m_Rotation;

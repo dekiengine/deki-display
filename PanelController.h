@@ -95,6 +95,11 @@ public:
     bool Init(const PanelConfig& config, const InitSequence* init);
 
     bool SetRotation(uint8_t rotation);
+    /// Writes in the controller's own orientation (rotation 0) while the
+    /// screen stays shown as SetRotation left it: for a display that turns
+    /// the pixels before they reach the controller (PanelDisplay's tear-free
+    /// presenting). GetScreenRotation keeps the screen's.
+    bool WriteInOwnOrientation();
     bool SetInvert(bool invert);
     bool SetSleep(bool sleep);
     bool SetDisplayOn(bool on);
@@ -121,6 +126,9 @@ public:
     /// How the panel was set up: its size before rotation, and the rotation.
     const PanelConfig& GetConfig() const { return m_Config; }
     uint8_t GetRotation() const { return m_Rotation; }
+    /// The rotation the screen is shown in: SetRotation's, also while the
+    /// controller is written in its own orientation. What touch turns with.
+    uint8_t GetScreenRotation() const { return m_ScreenRotation; }
     const ControllerInfo& GetInfo() const { return *m_Info; }
 
 private:
@@ -132,6 +140,7 @@ private:
     const ControllerInfo* m_Info;
     PanelConfig m_Config;
     uint8_t m_Rotation = 0;
+    uint8_t m_ScreenRotation = 0;
     int32_t m_Width = 0;
     int32_t m_Height = 0;
     int32_t m_ColStart = 0;

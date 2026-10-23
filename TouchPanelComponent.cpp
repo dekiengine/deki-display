@@ -117,7 +117,9 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
     mapper.yMax = yMax;
     mapper.panelWidth = display->GetConfig().panelWidth;
     mapper.panelHeight = display->GetConfig().panelHeight;
-    mapper.displayRotation = display->GetRotation();
+    // The screen's, which tear-free presenting keeps while the controller is
+    // written in its own orientation.
+    mapper.displayRotation = display->GetScreenRotation();
     mapper.offsetRotation = static_cast<uint8_t>(offsetRotation);
 
     auto input = std::make_unique<PanelTouchInput>(std::move(touch), mapper, intPin, &Now);

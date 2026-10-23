@@ -15,6 +15,21 @@ With `asyncPresent` each frame (or strip) is sent from the chip's other core whi
 
 More controllers (ILI9341, ST7789P3, ST7735, GC9A01, SSD1351) and touch (FT5x06, XPT2046) are on their way; until then `deki-lovyangfx-integration` stays available for them.
 
+## Tearing
+
+A panel refreshes itself from its own memory, a row at a time, about sixty
+times a second. A frame written while the refresh passes shows the top of one
+frame and the bottom of another: a line across anything that moves. Shown
+turned (landscape on a portrait panel), the panel's rows are the screen's
+columns, so a sideways swipe shows it worst.
+
+Wire the panel's tearing-effect output and set `tePin`, and frames never
+tear: each starts as the panel starts a refresh, and goes in the panel's own
+row order, which the write outruns the refresh in. A turned screen is turned
+as it is sent, and drawn in strips of columns. Frames then come at the
+panel's rate or half of it, never between: a frame that takes longer to draw
+than one refresh waits for the next.
+
 ## Init sequences belong to the board
 
 A controller's commands are the same on every panel, but the voltages, VCOM and gamma a panel module needs are its own: the LilyGO T-Deck's ST7789 ghosts with the default VCOM. So `initSequence` takes a board's own start-up, as text in the boot scene:
