@@ -46,12 +46,7 @@ alongside one that has them.
   brightness by command where an LCD has a backlight.
 - The CST816S/T touch controller (`TouchController::CST816`). It sleeps, and
   does not answer on I2C, until touched: it is set up when it first answers,
-  and a read it does not answer is no touch. It also folds: in places its
-  point flips about 12 pixels and back from one sample to the next (the
-  T-Display S3 AMOLED's around x 386-398), which a slow drag showed as a
-  twitch. Each axis reports the median of the touch's last three samples,
-  at one sample (about 19 ms) of lag: replayed through it, 1,709 logged
-  samples in 19 strokes went from 52 reversals to none.
+  and a read it does not answer is no touch.
 - Async present works with render buffers (`usePsram`, `doubleBuffer`) too:
   the worker sends a copy, so the engine never draws into what is being
   sent.

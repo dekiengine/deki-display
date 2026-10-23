@@ -15,15 +15,6 @@ namespace DekiDisplay
 /// so a read it does not answer is "no touch", and it is set up (the INT
 /// pulse on each change) the first time it does answer, not at start-up.
 ///
-/// It also folds: in places its point flips between two spots about 12
-/// pixels apart from one sample to the next (the T-Display S3 AMOLED's, at
-/// x 386-398 of 536), which a slow drag shows as a twitch back and forth. So
-/// while a finger is down each axis reports the median of the last three
-/// samples, which a one-sample flip never wins. A sample counts once however
-/// often it is read (a frame reads faster than the chip samples), and the
-/// first two samples of a touch are reported as they are. It costs a drag
-/// one sample (about 19 ms) of lag.
-///
 /// Portions derived from LovyanGFX (https://github.com/lovyan03/LovyanGFX),
 /// Copyright (c) lovyan03 and contributors, FreeBSD licence: Touch_CST816S's
 /// reset, register set-up and point decoding.
@@ -49,9 +40,6 @@ public:
 
 private:
     bool SetUp();
-    // Adds a sample to the touch's last three, unless it is the one before
-    // read again, and gives the median of each axis.
-    void Filter(uint16_t& x, uint16_t& y);
 
     DekiI2c::IDekiI2C* m_Bus;
     DekiGpio::IDekiGPIO* m_Gpio;
@@ -60,10 +48,6 @@ private:
     int32_t m_RstPin;
     DelayFn m_Delay;
     bool m_SetUp = false;
-    // This touch's last three samples, oldest first; m_Samples of them.
-    uint16_t m_X[3] = {};
-    uint16_t m_Y[3] = {};
-    int m_Samples = 0;
 };
 
 }  // namespace DekiDisplay

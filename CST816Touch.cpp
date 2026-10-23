@@ -16,18 +16,6 @@ constexpr uint8_t kRegIrqCtl = 0xFA;    // when INT pulses
 constexpr uint8_t kRegIrqPulse = 0xED;  // how long, in 0.1 ms
 constexpr uint8_t kIrqOnChange = 0x20;  // a pulse on each change; while touched (0x40) blurs the touch
 constexpr uint8_t kSleepIn = 0x03;
-
-uint16_t Median3(uint16_t a, uint16_t b, uint16_t c)
-{
-    if (a > b)
-    {
-        const uint16_t t = a;
-        a = b;
-        b = t;
-    }
-    // a <= b: the median is b unless c is below it.
-    return c < a ? a : (c < b ? c : b);
-}
 }  // namespace
 
 CST816Touch::CST816Touch(DekiI2c::IDekiI2C* bus, DekiGpio::IDekiGPIO* gpio, uint8_t address, int32_t intPin,
@@ -110,41 +98,13 @@ int CST816Touch::Read(TouchPoint* points, int max)
     }
     if (count == 0)
     {
-        m_Samples = 0;  // the next touch starts afresh
         return 0;
     }
-    uint16_t x = static_cast<uint16_t>(data[2] | ((data[1] & 0x0F) << 8));
-    uint16_t y = static_cast<uint16_t>(data[4] | ((data[3] & 0x0F) << 8));
-    Filter(x, y);
     points[0].id = 0;
     points[0].size = 1;
-    points[0].x = x;
-    points[0].y = y;
+    points[0].x = static_cast<uint16_t>(data[2] | ((data[1] & 0x0F) << 8));
+    points[0].y = static_cast<uint16_t>(data[4] | ((data[3] & 0x0F) << 8));
     return 1;
-}
-
-void CST816Touch::Filter(uint16_t& x, uint16_t& y)
-{
-    const bool repeat = m_Samples > 0 && x == m_X[m_Samples - 1] && y == m_Y[m_Samples - 1];
-    if (!repeat)
-    {
-        if (m_Samples == 3)
-        {
-            m_X[0] = m_X[1];
-            m_X[1] = m_X[2];
-            m_Y[0] = m_Y[1];
-            m_Y[1] = m_Y[2];
-            m_Samples = 2;
-        }
-        m_X[m_Samples] = x;
-        m_Y[m_Samples] = y;
-        ++m_Samples;
-    }
-    if (m_Samples == 3)
-    {
-        x = Median3(m_X[0], m_X[1], m_X[2]);
-        y = Median3(m_Y[0], m_Y[1], m_Y[2]);
-    }
 }
 
 void CST816Touch::Sleep()
@@ -152,7 +112,6 @@ void CST816Touch::Sleep()
     const uint8_t sleepIn = kSleepIn;
     m_Bus->Write(m_Address, kRegSleep, &sleepIn, 1);
     m_SetUp = false;
-    m_Samples = 0;
 }
 
 }  // namespace DekiDisplay
