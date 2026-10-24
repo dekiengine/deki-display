@@ -121,7 +121,7 @@ bool PanelDisplay::Start(const Options& options)
     m_PanelHeight = m_Height;
     // May turn the controller to its own orientation, so before anything is
     // sized by it or sent.
-    StartTearFree(options.tePin);
+    StartTearFree(options.tePin, options.scanlineSync);
 
     // A band is at most one transfer, and a whole number of rows.
     const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
@@ -187,14 +187,16 @@ void PanelDisplay::Shutdown()
     // uses goes.
     SetAsyncPresent(false);
     m_IO.WaitPixels(0);
-    if (m_TePin >= 0)
+    if (m_TePin >= 0 || m_Scanline)
     {
         DekiRendering::RegisterScanOrderedDisplay(this, nullptr);
-        if (DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent())
+        DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
+        if (gpio && m_TePin >= 0)
         {
             gpio->StopCounting(m_TePin);
         }
         m_TePin = -1;
+        m_Scanline.reset();
     }
     FreeBands();
     for (uint16_t*& buffer : m_RenderBuffers)
@@ -851,8 +853,8 @@ bool PanelDisplay::SetAsyncPresent(bool on)
     }
     if (!s_Worker || !s_Worker->start)
     {
-        DEKI_LOG_WARNING("PanelDisplay: this platform has no second core to send frames from; they are sent as they "
-                         "are drawn");
+        DEKI_LOG_INFO("PanelDisplay: this platform has no second core to send frames from; they are sent as they "
+                      "are drawn");
         return false;
     }
     // Two frames in external memory: the worker sends one while the engine
@@ -865,9 +867,9 @@ bool PanelDisplay::SetAsyncPresent(bool on)
     }
     if (!m_Staging[0] || !m_Staging[1])
     {
-        DEKI_LOG_ERROR("PanelDisplay: no external memory for two %zu-byte frame copies; frames are sent as they are "
-                       "drawn",
-                       bytes);
+        DEKI_LOG_INFO("PanelDisplay: no external memory for two %zu-byte frame copies; frames are sent as they are "
+                      "drawn",
+                      bytes);
         SetAsyncPresent(false);
         return false;
     }
@@ -885,7 +887,8 @@ bool PanelDisplay::SetAsyncPresent(bool on)
             std::lock_guard<std::mutex> lock(m_Lock);
             m_WorkerRunning = false;
         }
-        DEKI_LOG_ERROR("PanelDisplay: the present worker did not start; frames are sent as they are drawn");
+        DEKI_LOG_INFO("PanelDisplay: the present worker did not start (one core?); frames are sent as they are "
+                      "drawn");
         SetAsyncPresent(false);
         return false;
     }
@@ -1224,29 +1227,57 @@ constexpr uint8_t kMadctlMY = 0x80;
 constexpr uint8_t kMadctlMV = 0x20;
 }  // namespace
 
-void PanelDisplay::StartTearFree(int32_t tePin)
+void PanelDisplay::StartTearFree(int32_t tePin, bool scanline)
 {
     m_TePin = -1;
+    m_Scanline.reset();
     m_TeLost = false;
     m_Turned = false;
     m_ToScreen = PixelMap{};
     m_ToPanel = PixelMap{};
     m_ScanOrder = DekiRendering::ScanOrder::RowsDown;
-    if (tePin < 0)
+    if (tePin < 0 && !scanline)
     {
         return;
     }
-    DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
-    if (!gpio || !gpio->CountEdges(tePin, DekiGpio::Edge::Rising, DekiGpio::Pull::None))
+    // TE, the scanline and the turn here take MIPI DCS commands and MADCTL
+    // bits.
+    if (!m_Controller.GetInfo().commands.IsMipiDcs())
     {
-        DEKI_LOG_WARNING("PanelDisplay: the TE pin (GPIO %d) cannot be read here; frames are sent as they are drawn",
-                         static_cast<int>(tePin));
+        DEKI_LOG_WARNING("PanelDisplay: the %s cannot tell its refresh; frames are sent as they are drawn",
+                         m_Controller.GetInfo().name);
         return;
     }
-    m_TePin = tePin;
-    // TE on, pulsing once a refresh, as the refresh starts.
-    const uint8_t verticalOnly = 0x00;
-    m_Controller.SendCommand(kCmdTeOn, &verticalOnly, 1);
+    if (tePin >= 0)
+    {
+        DekiGpio::IDekiGPIO* gpio = DekiGpio::DekiGPIO::GetCurrent();
+        if (!gpio || !gpio->CountEdges(tePin, DekiGpio::Edge::Rising, DekiGpio::Pull::None))
+        {
+            DEKI_LOG_WARNING("PanelDisplay: the TE pin (GPIO %d) cannot be read here; frames are sent as they are "
+                             "drawn",
+                             static_cast<int>(tePin));
+            return;
+        }
+        m_TePin = tePin;
+        // TE on, pulsing once a refresh, as the refresh starts.
+        const uint8_t verticalOnly = 0x00;
+        m_Controller.SendCommand(kCmdTeOn, &verticalOnly, 1);
+    }
+    else
+    {
+        auto clock = std::make_unique<ScanlineClock>(m_IO, &PanelDisplay::Micros,
+                                                     s_Worker && s_Worker->yield ? s_Worker->yield : nullptr);
+        if (Micros() == 0 || !clock->Calibrate())
+        {
+            DEKI_LOG_INFO("PanelDisplay: the %s's scanline cannot be read here (is it wired to answer, or does it "
+                          "answer on MOSI: readsOnMosi?); frames are sent as they are drawn, and can tear",
+                          m_Controller.GetInfo().name);
+            return;
+        }
+        m_RefreshUs = clock->GetPeriodUs();
+        m_Scanline = std::move(clock);
+        DEKI_LOG_INFO("PanelDisplay: the panel refreshes at %.1f Hz, from its scanline", 1e6 / m_RefreshUs);
+    }
 
     // Shown turned or upside down, the screen's rows are not the panel's: the
     // controller goes back to its own orientation and the screen is turned
@@ -1288,9 +1319,18 @@ void PanelDisplay::StartTearFree(int32_t tePin)
     }
     DekiRendering::RegisterScanOrderedDisplay(this, this);
     static const char* const kOrders[] = { "rows down", "rows up", "columns left to right", "columns right to left" };
-    DEKI_LOG_INFO("PanelDisplay: frames start on the panel's refresh (TE on GPIO %d) and go in its own row order: "
-                  "%s of the screen%s",
-                  static_cast<int>(tePin), kOrders[static_cast<int>(m_ScanOrder)], m_Turned ? ", turned here" : "");
+    char source[24];
+    if (m_TePin >= 0)
+    {
+        snprintf(source, sizeof(source), "TE on GPIO %d", static_cast<int>(m_TePin));
+    }
+    else
+    {
+        snprintf(source, sizeof(source), "its scanline");
+    }
+    DEKI_LOG_INFO("PanelDisplay: frames start on the panel's refresh (%s) and go in its own row order: %s of the "
+                  "screen%s",
+                  source, kOrders[static_cast<int>(m_ScanOrder)], m_Turned ? ", turned here" : "");
 }
 
 uint64_t PanelDisplay::Micros()
@@ -1315,24 +1355,58 @@ void PanelDisplay::NotePartSent()
 // sets the pace), and one that missed it waits only until P - W into it
 // instead of the next start: a frame that takes a little longer than a
 // refresh to draw then costs a little more time, not a whole refresh more.
-// WaitForRefresh takes W as the shorter of the last two frames'.
+//
+// W is this frame's, which is not known until it is sent. WaitForRefresh
+// takes the longest any frame has taken: a late frame is often the one that
+// changes everything (a new scene, loaded in that frame), and the frames
+// before it, which changed a little, went out far faster.
+namespace
+{
+// A frame's write is not quite as steady as a refresh: a margin. It also
+// covers the blanking a refresh starts with, before its first row.
+constexpr uint32_t kTearMarginUs = 1000;
+}  // namespace
+
+uint32_t PanelDisplay::LongestWriteUs(uint32_t longestUs, uint32_t writeUs, uint32_t refreshUs)
+{
+    if (refreshUs != 0 && writeUs >= 2 * refreshUs)
+    {
+        return longestUs;
+    }
+    return std::max(longestUs, writeUs);
+}
+
+bool PanelDisplay::WritesBehind(uint32_t refreshUs, uint32_t writeUs)
+{
+    return writeUs != 0 && writeUs + kTearMarginUs >= refreshUs;
+}
+
+// A write that takes about a refresh or longer (a whole screen on one SPI
+// line, which goes at much the refresh's pace) cannot get ahead of it, but
+// can go behind: started just after the refresh begins, past its blanking,
+// the write never catches the refresh's rows up, so that refresh shows the
+// old frame; and if it ends within two refreshes, the next refresh reaches
+// each row after it is written, and shows the new frame whole.
 uint32_t PanelDisplay::TearFreeStartUs(uint32_t refreshUs, uint32_t writeUs)
 {
-    // A frame's write is not quite as steady as a refresh: a margin.
-    constexpr uint32_t kMarginUs = 1000;
     if (writeUs == 0)
     {
         return refreshUs;
     }
-    if (writeUs + kMarginUs >= refreshUs)
+    if (writeUs + kTearMarginUs >= 2 * refreshUs)
     {
         return 0;
     }
-    return refreshUs - writeUs + kMarginUs;
+    return (writeUs < refreshUs ? refreshUs - writeUs : 0) + kTearMarginUs;
 }
 
 void PanelDisplay::WaitForRefresh()
 {
+    if (m_Scanline)
+    {
+        WaitForRefreshByScanline();
+        return;
+    }
     if (m_TePin < 0 || m_TeLost)
     {
         return;
@@ -1341,33 +1415,35 @@ void PanelDisplay::WaitForRefresh()
     const uint64_t now = Micros();
     if (m_FrameStartUs != 0 && m_LastPartUs > m_FrameStartUs)
     {
-        m_WriteUs[1] = m_WriteUs[0];
-        m_WriteUs[0] = static_cast<uint32_t>(m_LastPartUs - m_FrameStartUs);
+        m_LongestWriteUs =
+            LongestWriteUs(m_LongestWriteUs, static_cast<uint32_t>(m_LastPartUs - m_FrameStartUs), m_RefreshUs);
     }
     uint32_t age = 0;
     if (gpio && m_RefreshUs != 0 && now != 0 && gpio->TimeSinceEdge(m_TePin, age) && age < 2 * m_RefreshUs)
     {
+        uint32_t opens = TearFreeStartUs(m_RefreshUs, m_LongestWriteUs);
         if (gpio->TakeEdges(m_TePin) == 0)
         {
-            // The frame before started in this refresh.
+            // The frame before started in this refresh: the next start, and
+            // past its blanking for a write that goes behind the refresh.
             WaitForRefreshStart();
-        }
-        else
-        {
-            const uint32_t opens = TearFreeStartUs(m_RefreshUs, std::min(m_WriteUs[0], m_WriteUs[1]));
-            uint32_t was = age;
-            while (age < opens && age >= was && !m_TeLost)
+            if (!WritesBehind(m_RefreshUs, m_LongestWriteUs) || !gpio->TimeSinceEdge(m_TePin, age))
             {
-                // Ticks while there is more than one to wait, then the rest.
-                if (opens - age > 2000 && s_Worker && s_Worker->yield)
-                {
-                    s_Worker->yield();
-                }
-                was = age;
-                if (!gpio->TimeSinceEdge(m_TePin, age))
-                {
-                    break;
-                }
+                opens = 0;
+            }
+        }
+        uint32_t was = age;
+        while (age < opens && age >= was && !m_TeLost)
+        {
+            // Ticks while there is more than one to wait, then the rest.
+            if (opens - age > 2000 && s_Worker && s_Worker->yield)
+            {
+                s_Worker->yield();
+            }
+            was = age;
+            if (!gpio->TimeSinceEdge(m_TePin, age))
+            {
+                break;
             }
         }
         gpio->TakeEdges(m_TePin);  // counted from this frame's start
@@ -1375,6 +1451,35 @@ void PanelDisplay::WaitForRefresh()
         return;
     }
     WaitForRefreshStart();
+    m_FrameStartUs = Micros();
+}
+
+// WaitForRefresh's rule, on the scanline clock.
+void PanelDisplay::WaitForRefreshByScanline()
+{
+    const uint64_t now = Micros();
+    if (m_FrameStartUs != 0 && m_LastPartUs > m_FrameStartUs)
+    {
+        m_LongestWriteUs =
+            LongestWriteUs(m_LongestWriteUs, static_cast<uint32_t>(m_LastPartUs - m_FrameStartUs), m_RefreshUs);
+    }
+    const uint32_t age = m_Scanline->AgeUs(now);
+    const uint32_t opens = TearFreeStartUs(m_Scanline->GetPeriodUs(), m_LongestWriteUs);
+    if ((m_FrameStartUs != 0 && now - m_FrameStartUs <= age) || opens >= m_Scanline->GetPeriodUs())
+    {
+        // The frame before started in this refresh, or a frame's write is
+        // not known yet: the next start, and past its blanking for a write
+        // that goes behind the refresh.
+        m_Scanline->WaitForStart();
+        if (WritesBehind(m_Scanline->GetPeriodUs(), m_LongestWriteUs))
+        {
+            m_Scanline->WaitForAge(opens);
+        }
+    }
+    else
+    {
+        m_Scanline->WaitForAge(opens);
+    }
     m_FrameStartUs = Micros();
 }
 
@@ -1430,6 +1535,40 @@ void PanelDisplay::GatherPanelRows(uint16_t* dst, const uint16_t* src, int32_t s
     const ptrdiff_t step = t.xx + static_cast<ptrdiff_t>(t.yx) * stride;
     const int w = m_PanelWidth;
     const UIOverlay* overlay = HasOverlay() ? m_ActiveOverlay : nullptr;
+    // Along a panel row the source steps a whole screen row (a turned
+    // screen): the band is read a screen row at a time instead, a run of
+    // neighbouring pixels from each, so a frame in external memory is read a
+    // cache line at a time rather than a pixel per line.
+    if (!overlay && (step == stride || step == -static_cast<ptrdiff_t>(stride)))
+    {
+        const int rows = last - first;
+        int32_t sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
+        t.Apply(0, first, sx0, sy0);
+        t.Apply(0, first + 1, sx1, sy1);
+        // Panel rows step through the source by this much.
+        const ptrdiff_t rowStep = (sx1 - sx0) + static_cast<ptrdiff_t>(sy1 - sy0) * stride;
+        const uint16_t* base = src + static_cast<ptrdiff_t>(sy0 - top) * stride + (sx0 - left);
+        for (int k = 0; k < w; ++k, base += step)
+        {
+            const uint16_t* p = base;
+            uint16_t* d = dst + k;
+            if (m_SwapRGB565)
+            {
+                for (int r = 0; r < rows; ++r, p += rowStep, d += w)
+                {
+                    *d = SwapBytes16(*p);
+                }
+            }
+            else
+            {
+                for (int r = 0; r < rows; ++r, p += rowStep, d += w)
+                {
+                    *d = *p;
+                }
+            }
+        }
+        return;
+    }
     for (int py = first; py < last; ++py)
     {
         int32_t sx = 0, sy = 0;

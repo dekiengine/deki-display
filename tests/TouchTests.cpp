@@ -1,20 +1,24 @@
 // deki-display's touch off a device:
 //
 // - TouchMapper: raw coordinates to screen pixels, as LovyanGFX maps them.
-// - GT911Touch: its start-up, address fallback, wake pulse and reports,
-//   against an I2C bus that answers as a GT911 does.
+// - GT911Touch, CST816Touch and FT5x06Touch: start-up and reports, against an
+//   I2C bus that answers as each does.
+// - XPT2046Touch: its readings decoded and filtered.
 // - PanelTouchInput: the press, moves and release it sends.
-// - TouchPanelComponent: a boot scene runs where there is no I2C.
+// - TouchPanelComponent: a boot scene runs where there is no bus.
 
 #include <gtest/gtest.h>
 
 #include "DekiGPIO.h"
 #include "CST816Touch.h"
 #include "DekiI2C.h"
+#include "DekiSPI.h"
+#include "FT5x06Touch.h"
 #include "GT911Touch.h"
 #include "PanelTouchInput.h"
 #include "TouchMapper.h"
 #include "TouchPanelComponent.h"
+#include "XPT2046Touch.h"
 
 #include <deki/PackageConfig.h>
 
@@ -33,7 +37,7 @@ class FakeGT911Bus : public DekiI2c::IDekiI2C
 {
 public:
     uint8_t answersOn = 0x5D;
-    uint8_t status = 0;  // at 0x814E
+    uint8_t status = 0;           // at 0x814E
     std::vector<uint8_t> points;  // from 0x814F
     int clears = 0;
     int reads = 0;
@@ -93,8 +97,14 @@ public:
     void Touch(uint16_t x, uint16_t y)
     {
         status = 0x81;
-        points = { 0, static_cast<uint8_t>(x), static_cast<uint8_t>(x >> 8), static_cast<uint8_t>(y),
-                   static_cast<uint8_t>(y >> 8), 20, 0, 0 };
+        points = { 0,
+                   static_cast<uint8_t>(x),
+                   static_cast<uint8_t>(x >> 8),
+                   static_cast<uint8_t>(y),
+                   static_cast<uint8_t>(y >> 8),
+                   20,
+                   0,
+                   0 };
     }
 };
 
@@ -533,5 +543,194 @@ TEST(TouchPanelComponent, TouchNeedsTheDisplayStartedFirst)
     DekiI2c::DekiI2C::SetFactory(&NoI2C);
     TouchPanelComponent c;
     EXPECT_FALSE(RunSetup(c));
+    DekiI2c::DekiI2C::SetFactory(nullptr);
+}
+
+// --- FT5x06Touch ---
+
+namespace
+{
+
+// An FT5x06 behind an I2C bus at 0x38: a register file, read and written from
+// any register on.
+class FakeFT5x06Bus : public DekiI2c::IDekiI2C
+{
+public:
+    uint8_t regs[256] = {};
+    int pointReads = 0;
+    // Changes the first finger's x low byte on the first read of the points,
+    // as a report caught mid-update.
+    bool tearFirstRead = false;
+
+    FakeFT5x06Bus() { regs[0xA8] = 0x11; }  // a vendor id
+
+    const char* GetPackageId() const override { return "i2c"; }
+    const char* GetPackageName() const override { return "Fake FT5x06 bus"; }
+    void Configure(const Deki::PackageConfig&) override {}
+    bool Initialize() override { return true; }
+    void Shutdown() override {}
+    void Update(float) override {}
+    Deki::PackageState GetState() const override { return Deki::PackageState::Running; }
+    const char* GetLastError() const override { return ""; }
+    int GetPort() const override { return 0; }
+    int GetSdaPin() const override { return 3; }
+    int GetSclPin() const override { return 2; }
+    int GetFrequencyHz() const override { return 400000; }
+    bool Probe(uint8_t addr) override { return addr == 0x38; }
+    bool Read(uint8_t addr, uint8_t reg, uint8_t* dst, size_t len) override
+    {
+        if (addr != 0x38)
+        {
+            return false;
+        }
+        for (size_t i = 0; i < len; ++i)
+        {
+            dst[i] = regs[(reg + i) & 0xFF];
+        }
+        if (reg == 0x03 && pointReads++ == 0 && tearFirstRead)
+        {
+            dst[1] ^= 0x55;
+        }
+        return true;
+    }
+    bool Write(uint8_t addr, uint8_t reg, const uint8_t* src, size_t len) override
+    {
+        if (addr != 0x38)
+        {
+            return false;
+        }
+        for (size_t i = 0; i < len; ++i)
+        {
+            regs[(reg + i) & 0xFF] = src[i];
+        }
+        return true;
+    }
+    // Finger `i` with id `id` at (x, y), six bytes from 0x03.
+    void Finger(int i, uint8_t id, uint16_t x, uint16_t y)
+    {
+        uint8_t* d = &regs[0x03 + i * 6];
+        d[0] = static_cast<uint8_t>(0x80 | (x >> 8));  // contact, x high nibble
+        d[1] = static_cast<uint8_t>(x);
+        d[2] = static_cast<uint8_t>((id << 4) | (y >> 8));
+        d[3] = static_cast<uint8_t>(y);
+    }
+};
+
+}  // namespace
+
+TEST(FT5x06Touch, StartsInPollingModeWhenItAnswers)
+{
+    FakeFT5x06Bus bus;
+    bus.regs[0xA4] = 0x01;
+    FT5x06Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    EXPECT_EQ(touch.GetAddress(), 0x38);
+    EXPECT_EQ(bus.regs[0xA4], 0x00);  // INT low while touched
+
+    FakeFT5x06Bus silent;
+    silent.regs[0xA8] = 0;  // no vendor id: not an FT5x06
+    FT5x06Touch none(&silent, nullptr, 0, -1, -1, &Delay);
+    EXPECT_FALSE(none.Init());
+}
+
+TEST(FT5x06Touch, ReadsEachFingerUntilTwoReadsAgree)
+{
+    FakeFT5x06Bus bus;
+    FT5x06Touch touch(&bus, nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(touch.Init());
+    TouchPoint p[5];
+    EXPECT_EQ(touch.Read(p, 5), 0);
+
+    bus.regs[0x02] = 2;
+    bus.Finger(0, 0, 0x0123, 0x0045);
+    bus.Finger(1, 1, 0x0200, 0x0101);
+    bus.tearFirstRead = true;
+    ASSERT_EQ(touch.Read(p, 5), 2);
+    EXPECT_EQ(p[0].x, 0x0123);
+    EXPECT_EQ(p[0].y, 0x0045);
+    EXPECT_EQ(p[1].x, 0x0200);
+    EXPECT_EQ(p[1].y, 0x0101);
+    EXPECT_EQ(p[1].id, 1);
+    EXPECT_GE(bus.pointReads, 3);  // the torn read, then two that agree
+
+    // Asked for one, it gives one.
+    EXPECT_EQ(touch.Read(p, 1), 1);
+    bus.regs[0x02] = 0;  // lifted
+    EXPECT_EQ(touch.Read(p, 5), 0);
+}
+
+TEST(FT5x06Touch, AStillFingerStaysPressedWithoutInt)
+{
+    auto bus = std::make_unique<FakeFT5x06Bus>();
+    auto ft = std::make_unique<FT5x06Touch>(bus.get(), nullptr, 0, -1, -1, &Delay);
+    ASSERT_TRUE(ft->Init());
+    PanelTouchInput input(std::move(ft), TouchMapper{}, -1, &Now);
+    ASSERT_TRUE(input.Initialize());
+    std::vector<Recorded> events;
+    input.RegisterEventCallback([&](const DekiInput::InputEvent& e) { events.push_back({ e.type, e.x, e.y }); });
+    bus->regs[0x02] = 1;
+    bus->Finger(0, 0, 30, 40);
+    for (int i = 0; i < 10; ++i)
+    {
+        input.Update();
+    }
+    ASSERT_EQ(events.size(), 1u);  // its count says the finger is still there
+    EXPECT_EQ(events[0].type, DekiInput::InputEventType::MouseButtonDown);
+}
+
+// --- XPT2046Touch ---
+
+namespace
+{
+
+// A 57-byte reply as an XPT2046 gives it: seven measurements of Y, Z1, X and
+// Z2, each reply a byte behind its command, 12 bits shifted up by 3.
+std::vector<uint8_t> XPT2046Reply(int x, int y, int z1, int z2)
+{
+    std::vector<uint8_t> rx(57, 0);
+    auto put = [&](size_t at, int v)
+    {
+        rx[at] = static_cast<uint8_t>((v << 3) >> 8);
+        rx[at + 1] = static_cast<uint8_t>(v << 3);
+    };
+    for (int i = 0; i < 7; ++i)
+    {
+        const size_t d = static_cast<size_t>(i) * 8;
+        put(d + 1, y);
+        put(d + 3, z1);
+        put(d + 5, x);
+        put(d + 7, z2);
+    }
+    return rx;
+}
+
+}  // namespace
+
+TEST(XPT2046Touch, APressedPlateGivesItsMiddleReadings)
+{
+    TouchPoint p;
+    std::vector<uint8_t> rx = XPT2046Reply(1500, 2500, 600, 400);
+    rx[1 + 8 * 2] = 0xFF;  // one wild Y reading, out of range, is left out
+    ASSERT_EQ(XPT2046Touch::Decode(rx.data(), p), 1);
+    EXPECT_EQ(p.x, 1500);
+    EXPECT_EQ(p.y, 2500);
+    EXPECT_GT(p.size, 0);
+}
+
+TEST(XPT2046Touch, AnUnpressedPlateIsNoTouch)
+{
+    TouchPoint p;
+    // Not pressed, X and Y read at the ends of the range.
+    std::vector<uint8_t> rx = XPT2046Reply(4095, 0, 0, 0);
+    EXPECT_EQ(XPT2046Touch::Decode(rx.data(), p), 0);
+}
+
+TEST(TouchPanelComponent, AnXpt2046BootSceneRunsWhereThereIsNoSpi)
+{
+    DekiSpi::DekiSPI::SetFactory(nullptr);
+    DekiI2c::DekiI2C::SetFactory(&NoI2C);  // I2C alone does not count for it
+    TouchPanelComponent c;
+    c.controller = TouchController::XPT2046;
+    EXPECT_TRUE(RunSetup(c));
     DekiI2c::DekiI2C::SetFactory(nullptr);
 }

@@ -108,4 +108,18 @@ size_t SpiPanelIO::GetMaxChunkBytes() const
     return m_Device ? m_Device->GetMaxTransferBytes() : 0;
 }
 
+bool SpiPanelIO::Read(uint8_t cmd, uint8_t* out, size_t n)
+{
+    // One transfer, the command as its command phase: a device read at a
+    // clock of its own reads through a second driver handle, and the whole
+    // read is on it.
+    DekiSpi::Transfer r;
+    r.cmdBits = 8;
+    r.cmd = cmd;
+    r.rx = out;
+    r.rxBytes = n;
+    r.dc = 0;
+    return m_Device->Transmit(r);
+}
+
 }  // namespace DekiDisplay

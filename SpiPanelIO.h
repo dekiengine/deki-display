@@ -17,7 +17,10 @@ class SpiPanelIO : public IPanelIO
 public:
     /// `device` is a half-duplex device with the panel's DC pin, from
     /// IDekiSPIBus::AddDevice. The bus keeps it; this only borrows it.
-    explicit SpiPanelIO(DekiSpi::IDekiSPIDevice* device) : m_Device(device) {}
+    explicit SpiPanelIO(DekiSpi::IDekiSPIDevice* device)
+        : m_Device(device)
+    {
+    }
 
     bool Begin() override;
     void End() override;
@@ -28,6 +31,8 @@ public:
     uint32_t GetQueuedCount() const override { return m_Queued; }
     size_t GetMaxChunkBytes() const override;
     bool PixelsBigEndian() const override { return true; }
+    /// The command, then `n` bytes read, in one transfer with DC low.
+    bool Read(uint8_t cmd, uint8_t* out, size_t n) override;
 
 private:
     // Queues `t`, counting it.

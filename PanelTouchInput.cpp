@@ -5,7 +5,10 @@ namespace DekiDisplay
 
 PanelTouchInput::PanelTouchInput(std::unique_ptr<ITouchController> controller, const TouchMapper& mapper,
                                  int32_t intPin, NowFn now)
-    : m_Controller(std::move(controller)), m_Mapper(mapper), m_IntPin(intPin), m_Now(now)
+    : m_Controller(std::move(controller)),
+      m_Mapper(mapper),
+      m_IntPin(intPin),
+      m_Now(now)
 {
 }
 
@@ -111,7 +114,7 @@ void PanelTouchInput::Update()
     // With no INT line a controller may keep reporting the last touch after
     // the finger has gone: a point that has not moved for a few frames
     // counts as lifted.
-    if (m_IntPin < 0 && ++m_StaleFrames >= kStaleFrames)
+    if (m_IntPin < 0 && m_Controller->MayRepeatLastTouch() && ++m_StaleFrames >= kStaleFrames)
     {
         m_Pressed = false;
         m_StaleFrames = 0;

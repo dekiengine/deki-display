@@ -13,7 +13,9 @@ namespace DekiDisplay
 enum class DisplayBus : uint8_t
 {
     SPI = 0,
-    QSPI = 1
+    QSPI = 1,
+    Parallel8 = 2,
+    Parallel16 = 3
 };
 
 enum class DisplayRotation : uint8_t
@@ -32,13 +34,14 @@ enum class DisplayRotation : uint8_t
 /// the controller, how it is wired, and the start-up its panel module needs.
 ///
 /// The panel is on an SPI bus an SPI Bus component (deki-spi) has started,
-/// before this one in PlatformSetupComponent's list. Touch comes after it.
+/// before this one in PlatformSetupComponent's list, or on its own parallel
+/// bus, which this starts. Touch comes after it.
 ///
-/// On a platform with no SPI (the editor, the simulator) it reports success
-/// and starts nothing, so a board's boot scene runs there too.
+/// On a platform with no such bus (the editor, the simulator) it reports
+/// success and starts nothing, so a board's boot scene runs there too.
 DEKI_CATEGORY("Display")
-DEKI_DESCRIPTION("Drives a display panel (ST7789, ...) over SPI with Deki's own display library, and gives it to "
-                 "the engine.")
+DEKI_DESCRIPTION("Drives a display panel (ST7789, ILI9341, GC9A01, ...) over SPI, quad SPI or an 8- or 16-bit "
+                 "parallel bus with Deki's own display library, and gives it to the engine.")
 class DEKI_DISPLAY_API DisplayPanelComponent : public Deki::SetupComponent
 {
 public:
@@ -90,26 +93,143 @@ public:
 
     DEKI_GROUP("Bus")
     DEKI_EXPORT
-    DEKI_TOOLTIP("How the panel is wired: SPI with a data/command pin (most LCDs), or quad SPI (AMOLED panels such as "
-                 "the RM67162), which needs an SPI Bus with IO2 and IO3")
+    DEKI_TOOLTIP("How the panel is wired: SPI with a data/command pin (most LCDs), quad SPI (AMOLED panels such as "
+                 "the RM67162), which needs an SPI Bus with IO2 and IO3, or an 8- or 16-bit parallel bus (8080), "
+                 "which this component starts itself")
     DisplayBus busType = DisplayBus::SPI;
 
     DEKI_EXPORT
     DEKI_TOOLTIP("The SPI host the panel is on, as the SPI Bus component that starts it numbers it (on an ESP32-S3: "
                  "1 = SPI2, 2 = SPI3)")
+    DEKI_VISIBLE_WHEN(busType, SPI, QSPI)
     DEKI_RANGE(0, 3)
     int32_t spiHost = 1;
 
     DEKI_EXPORT
     DEKI_UNIT(Frequency)
     DEKI_TOOLTIP("SPI clock for the panel. 80 MHz is the ESP32-S3's fastest, and most ST7789 modules take it")
+    DEKI_VISIBLE_WHEN(busType, SPI, QSPI)
     int32_t spiWriteHz = 40000000;
 
     DEKI_EXPORT
-    DEKI_TOOLTIP("Data/command pin (DC)")
-    DEKI_VISIBLE_WHEN(busType, SPI)
+    DEKI_UNIT(Frequency)
+    DEKI_TOOLTIP("Write strobe frequency on the parallel bus. Most panels take 20 MHz; some, with short wires, more")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    int32_t parallelWriteHz = 20000000;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data/command pin (DC, also called RS)")
+    DEKI_VISIBLE_WHEN(busType, SPI, Parallel8, Parallel16)
     DEKI_RANGE(-1, 48)
     int32_t dcPin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Write strobe pin (WR)")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t wrPin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Read strobe pin (RD), held high: the panel is only written (-1 = tied high on the board)")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t rdPin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D0")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d0Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D1")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d1Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D2")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d2Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D3")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d3Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D4")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d4Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D5")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d5Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D6")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d6Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D7")
+    DEKI_VISIBLE_WHEN(busType, Parallel8, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d7Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D8")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d8Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D9")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d9Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D10")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d10Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D11")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d11Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D12")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d12Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D13")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d13Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D14")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d14Pin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Data line D15")
+    DEKI_VISIBLE_WHEN(busType, Parallel16)
+    DEKI_RANGE(-1, 48)
+    int32_t d15Pin = -1;
 
     // ========== Control pins ==========
 
@@ -130,6 +250,23 @@ public:
                  "turned as it is sent and drawn in strips of columns")
     DEKI_RANGE(-1, 48)
     int32_t tePin = -1;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("With no TE line wired, read the panel's scanline instead, so frames still never tear. A panel "
+                 "that cannot be read back is sent as frames are drawn, and the boot log says so")
+    DEKI_VISIBLE_WHEN(busType, SPI)
+    bool scanlineSync = true;
+
+    DEKI_EXPORT
+    DEKI_UNIT(Frequency)
+    DEKI_TOOLTIP("SPI clock for reading the panel back, slower than writing it (the ST7789 reads reliably at 10 MHz)")
+    DEKI_VISIBLE_WHEN(scanlineSync, 1)
+    int32_t spiReadHz = 10000000;
+
+    DEKI_EXPORT
+    DEKI_TOOLTIP("The panel answers on its data-in line (SDA both ways, as the LilyGO T-Deck's does), not on MISO")
+    DEKI_VISIBLE_WHEN(scanlineSync, 1)
+    bool readsOnMosi = false;
 
     // ========== Backlight ==========
 
@@ -168,9 +305,9 @@ public:
 
     DEKI_EXPORT
     DEKI_TOOLTIP("Send each frame from the chip's other core while the next is drawn: a frame costs the longer of "
-                 "drawing and sending instead of both. Takes two frames of external memory (PSRAM) and a dual-core "
-                 "chip")
-    bool asyncPresent = false;
+                 "drawing and sending instead of both. Needs a dual-core chip and two frames of external memory "
+                 "(PSRAM); without them, frames are sent as they are drawn, and the boot log says so")
+    bool asyncPresent = true;
 
     // ========== SetupComponent ==========
 

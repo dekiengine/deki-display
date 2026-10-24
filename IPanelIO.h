@@ -56,6 +56,11 @@ public:
     /// True when the wire takes RGB565 high byte first, as every serial
     /// panel does. A frame in the other order is swapped on its way out.
     virtual bool PixelsBigEndian() const = 0;
+
+    /// Sends `cmd` and reads `n` bytes back, as the wire gives them (a
+    /// controller's dummy bit included), once the queued pixels are sent.
+    /// False on a bus that cannot read.
+    virtual bool Read(uint8_t /*cmd*/, uint8_t* /*out*/, size_t /*n*/) { return false; }
 };
 
 }  // namespace DekiDisplay

@@ -30,6 +30,10 @@ public:
     virtual int Read(TouchPoint* points, int max) = 0;
     virtual void Sleep() {}
     virtual void Wake() {}
+    /// True when, with no INT line, it may keep reporting the last touch
+    /// after the finger has gone, so a point that does not move for a few
+    /// frames counts as lifted.
+    virtual bool MayRepeatLastTouch() const { return true; }
 };
 
 }  // namespace DekiDisplay

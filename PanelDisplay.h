@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -13,6 +14,7 @@
 #include "IPanelIO.h"
 #include "PanelController.h"
 #include "PanelTurn.h"
+#include "ScanlineClock.h"
 #include "ScanOrderedDisplay.h"  // from deki-rendering
 
 namespace DekiDisplay
@@ -59,6 +61,9 @@ public:
         /// The panel's tearing-effect output, -1 for none. With it, frames
         /// are sent in step with the panel's refresh, in its own row order.
         int32_t tePin = -1;
+        /// With no TE line: the same, from the panel's scanline, which the
+        /// panel IO reads back (ScanlineClock).
+        bool scanlineSync = false;
     };
 
     PanelDisplay(PanelController& controller, IPanelIO& io);
@@ -104,15 +109,24 @@ public:
     uint8_t* GetStripBuffer(size_t bytes) override;
 
     /// Frames start on the panel's refresh (a TE pin is set and pulsing).
-    bool IsTearFree() const { return m_TePin >= 0 && !m_TeLost; }
+    bool IsTearFree() const { return (m_TePin >= 0 || m_Scanline) && !m_TeLost; }
 
     /// How far into a refresh of `refreshUs` (microseconds since it started)
     /// a frame that missed its start can begin without tearing, when frames
-    /// take `writeUs` to go out (0: not known yet). From there to the next
-    /// start, the write cannot catch the refresh up before it ends, and is
-    /// ahead of the next. `refreshUs` or more: wait for the next start. 0: a
-    /// frame that slow tears wherever it starts, so it starts at once.
+    /// take `writeUs` to go out (0: not known yet). From there the write
+    /// cannot catch the refresh up before it ends, and is ahead of the next.
+    /// `refreshUs` or more: wait for the next start. 0: a frame that slow
+    /// (two refreshes) tears wherever it starts, so it starts at once.
     static uint32_t TearFreeStartUs(uint32_t refreshUs, uint32_t writeUs);
+    /// True when a frame that takes `writeUs` goes out behind the refresh
+    /// rather than ahead of it: as long as a refresh, or nearly, it starts
+    /// once the refresh has begun, not at its start.
+    static bool WritesBehind(uint32_t refreshUs, uint32_t writeUs);
+    /// The longest write a late frame is started for: `longestUs` or
+    /// `writeUs`, whichever is longer. A write of two refreshes or more
+    /// (`refreshUs`) is a stall and is left out, so one does not set every
+    /// late frame going at once.
+    static uint32_t LongestWriteUs(uint32_t longestUs, uint32_t writeUs, uint32_t refreshUs);
     /// The screen is turned here as it is sent: the controller stays at its
     /// own orientation.
     bool IsTurned() const { return m_Turned; }
@@ -259,12 +273,13 @@ private:
     // ---- Tear-free (Options::tePin) ----
     // Turns TE on, and the controller to its own orientation when the screen
     // is turned. In Start, before the panel is cleared.
-    void StartTearFree(int32_t tePin);
+    void StartTearFree(int32_t tePin, bool scanline);
     // Waits until a frame can start without tearing: the next refresh's
     // start, or, for a frame that missed one, the point in this refresh from
     // which its write cannot catch the refresh up (see the .cpp). A TE line
     // that does not pulse is said once and then not waited for.
     void WaitForRefresh();
+    void WaitForRefreshByScanline();
     // Waits for the panel's next refresh to start.
     void WaitForRefreshStart();
     // Notes that a part of the frame has gone out (been queued), for how long
@@ -321,16 +336,18 @@ private:
 
     // Tear-free.
     int32_t m_TePin = -1;
+    // Where the refresh is when there is no TE line.
+    std::unique_ptr<ScanlineClock> m_Scanline;
     std::atomic<bool> m_TeLost{ false };  // set by whichever core waited
     // Measuring the refresh rate, on whichever core waits.
     uint32_t m_RefreshSince = 0;
     bool m_RefreshSaid = false;
-    // Once measured, how long a refresh takes, and how long the last two
-    // frames took to go out, from their first part to their last.
+    // Once measured, how long a refresh takes, and the longest a frame has
+    // taken to go out, from its first part to its last.
     uint32_t m_RefreshUs = 0;
     uint64_t m_FrameStartUs = 0;
     uint64_t m_LastPartUs = 0;
-    uint32_t m_WriteUs[2] = { 0, 0 };
+    uint32_t m_LongestWriteUs = 0;
     bool m_Turned = false;
     PixelMap m_ToScreen;  // a panel pixel's screen pixel, turned
     PixelMap m_ToPanel;   // and back

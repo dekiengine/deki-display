@@ -1,7 +1,7 @@
 // Portions derived from LovyanGFX (https://github.com/lovyan03/LovyanGFX),
 // Copyright (c) lovyan03 and contributors, FreeBSD licence: Panel_LCD's
-// rotation arithmetic and window encoding, Panel_Device's reset timing. See
-// NOTICE.
+// rotation arithmetic and window encoding, Panel_GC9xxx's and Panel_SSD1351's
+// windows, Panel_Device's reset timing. See NOTICE.
 
 #include "PanelController.h"
 
@@ -15,19 +15,9 @@ namespace DekiDisplay
 
 namespace
 {
-constexpr uint8_t kCmdNop = 0x00;
-constexpr uint8_t kCmdSlpIn = 0x10;
-constexpr uint8_t kCmdSlpOut = 0x11;
-constexpr uint8_t kCmdInvOff = 0x20;
-constexpr uint8_t kCmdInvOn = 0x21;
-constexpr uint8_t kCmdDispOff = 0x28;
-constexpr uint8_t kCmdDispOn = 0x29;
-constexpr uint8_t kCmdCaset = 0x2A;
-constexpr uint8_t kCmdRaset = 0x2B;
-constexpr uint8_t kCmdRamwr = 0x2C;
-constexpr uint8_t kCmdMadctl = 0x36;
-constexpr uint8_t kCmdColmod = 0x3A;
+// COLMOD's pixel formats.
 constexpr uint8_t kColmodRGB565 = 0x55;
+constexpr uint8_t kColmodRGB666 = 0x66;
 }  // namespace
 
 PanelController::PanelController(IPanelIO& io, DelayFn delay)
@@ -90,7 +80,11 @@ bool PanelController::Init(const PanelConfig& config, const InitSequence* init)
     m_IO.End();
 
     ok = SetInvert(m_Config.invert) && ok;
-    ok = m_IO.Command(kCmdColmod, &kColmodRGB565, 1) && ok;
+    if (m_Info->commands.colmod != 0)
+    {
+        const uint8_t format = m_Config.pixels18 ? kColmodRGB666 : kColmodRGB565;
+        ok = m_IO.Command(m_Info->commands.colmod, &format, 1) && ok;
+    }
     ok = SetRotation(m_Config.rotation) && ok;
     if (!ok)
     {
@@ -146,18 +140,20 @@ bool PanelController::SetRotation(uint8_t rotation)
 bool PanelController::SendMadctl()
 {
     const uint8_t madctl = static_cast<uint8_t>(m_Info->madctl[m_Rotation] | (m_Config.rgbOrder ? 0 : m_Info->bgrBit));
-    return m_IO.Command(kCmdMadctl, &madctl, 1);
+    return m_IO.Command(m_Info->commands.madctl, &madctl, 1);
 }
 
 bool PanelController::SetInvert(bool invert)
 {
     m_Config.invert = invert;
-    return m_IO.Command(invert ? kCmdInvOn : kCmdInvOff, nullptr, 0);
+    const ControllerCommands& c = m_Info->commands;
+    return m_IO.Command(invert ? c.invertOn : c.invertOff, nullptr, 0);
 }
 
 bool PanelController::SetSleep(bool sleep)
 {
-    const bool ok = m_IO.Command(sleep ? kCmdSlpIn : kCmdSlpOut, nullptr, 0);
+    const ControllerCommands& c = m_Info->commands;
+    const bool ok = m_IO.Command(sleep ? c.sleepIn : c.sleepOut, nullptr, 0);
     // The controller needs 120 ms after SLPOUT before the next SLPIN, and
     // 5 ms after SLPIN before it is asleep.
     if (m_Delay)
@@ -169,7 +165,8 @@ bool PanelController::SetSleep(bool sleep)
 
 bool PanelController::SetDisplayOn(bool on)
 {
-    return m_IO.Command(on ? kCmdDispOn : kCmdDispOff, nullptr, 0);
+    const ControllerCommands& c = m_Info->commands;
+    return m_IO.Command(on ? c.displayOn : c.displayOff, nullptr, 0);
 }
 
 bool PanelController::SetBrightness(uint8_t level)
@@ -188,17 +185,26 @@ void PanelController::EndWrite()
     // command: the NOP lets another device use the bus between writes.
     if (!m_Config.hasChipSelect && m_Info->nopOnEnd)
     {
-        m_IO.Command(kCmdNop, nullptr, 0);
+        m_IO.Command(m_Info->commands.nop, nullptr, 0);
     }
     m_IO.End();
 }
 
-static void PutWindow(uint8_t* out, int32_t start, int32_t end)
+// A window command's parameters: start and end, each in `bytes` bytes, high
+// byte first. Returns how many it wrote.
+static size_t PutWindow(uint8_t* out, int32_t start, int32_t end, uint8_t bytes)
 {
+    if (bytes == 1)
+    {
+        out[0] = static_cast<uint8_t>(start);
+        out[1] = static_cast<uint8_t>(end);
+        return 2;
+    }
     out[0] = static_cast<uint8_t>(start >> 8);
     out[1] = static_cast<uint8_t>(start);
     out[2] = static_cast<uint8_t>(end >> 8);
     out[3] = static_cast<uint8_t>(end);
+    return 4;
 }
 
 bool PanelController::SetWindow(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
@@ -211,23 +217,36 @@ bool PanelController::SetWindow(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
     const int32_t xe = x1 - 1 + m_ColStart;
     const int32_t ys = y0 + m_RowStart;
     const int32_t ye = y1 - 1 + m_RowStart;
+    const ControllerCommands& c = m_Info->commands;
+    const bool turned = (m_Rotation & 1) != 0;
+    // The SSD1351 turns its address counter: its column command takes rows.
+    const uint8_t columnsCmd = c.windowTurns && turned ? c.rows : c.columns;
+    const uint8_t rowsCmd = c.windowTurns && turned ? c.columns : c.rows;
     bool ok = true;
     uint8_t params[4];
     if (xs != m_Xs || xe != m_Xe)
     {
-        PutWindow(params, xs, xe);
-        ok = m_IO.Command(kCmdCaset, params, 4);
+        if (m_Info->openRowsBeforeColumns && turned)
+        {
+            // Panel_GC9xxx: turned, the GC9A01 takes a new column range only
+            // once the rows span everything.
+            const uint8_t all[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
+            ok = m_IO.Command(rowsCmd, all, 4);
+            m_Ys = m_Ye = -1;
+        }
+        const size_t n = PutWindow(params, xs, xe, c.windowBytes);
+        ok = ok && m_IO.Command(columnsCmd, params, n);
         m_Xs = ok ? xs : -1;
         m_Xe = ok ? xe : -1;
     }
     if (ok && (ys != m_Ys || ye != m_Ye))
     {
-        PutWindow(params, ys, ye);
-        ok = m_IO.Command(kCmdRaset, params, 4);
+        const size_t n = PutWindow(params, ys, ye, c.windowBytes);
+        ok = m_IO.Command(rowsCmd, params, n);
         m_Ys = ok ? ys : -1;
         m_Ye = ok ? ye : -1;
     }
-    return ok && m_IO.StartPixels(kCmdRamwr);
+    return ok && m_IO.StartPixels(c.memoryWrite);
 }
 
 bool PanelController::SendCommand(uint8_t cmd, const uint8_t* params, size_t n)

@@ -64,3 +64,54 @@ alongside one that has them.
   waiting. On a LilyGO T-Display S3 AMOLED (its panel refreshes at
   59.6 Hz): 59.5 fps in strips with no tearing, and 28.6 in whole frames,
   which take 25 ms to draw in PSRAM.
+- More controllers, each a table ported from LovyanGFX 1.2.29: ILI9341,
+  ST7735 (the B version), ST7735S (the R version), GC9A01, ST7789P3, ST7796,
+  ILI9488 and SSD1351 on SPI or a parallel bus, and the CO5300 AMOLED on
+  QSPI. A controller names its own commands (`ControllerCommands`): the
+  SSD1351's window is a byte a coordinate, its column and row commands trade
+  places when turned, and its remap takes MADCTL's place. The GC9A01 opens
+  its rows before a turned window's columns, as LovyanGFX does. Checked
+  against LovyanGFX's bytes in tests; none has run on a board yet.
+- 18 bits a pixel: the ILI9488 takes no RGB565 over SPI, so its pixels go out
+  as RGB666 through `Rgb666PanelIO`, which widens each piece into its own DMA
+  buffers while the piece before is sent, and COLMOD is 0x66.
+- Parallel panels: `busType` `Parallel8` and `Parallel16`, an 8080 bus of 8
+  or 16 data lines with DC, WR and RD pins and its write clock
+  (`parallelWriteHz`). The platform drives the bus (`ParallelBus`, a factory
+  it registers; `ParallelPanelIO` speaks to it), and the component starts it
+  itself. On 16 lines a pixel goes as memory holds it, so a little-endian
+  frame needs no byte swap.
+- Touch: the FT5x06 family (FT5206, FT6206, FT6336 and others) on I2C, and
+  the XPT2046 resistive controller on SPI, both ported from LovyanGFX. The
+  XPT2046's raw readings need calibrating in the touch bounds. A controller
+  whose count or pressure says when the finger has gone
+  (`ITouchController::MayRepeatLastTouch` false) is not released for holding
+  still.
+- Tear-free: a frame that missed its refresh's start is started for the
+  longest write any frame has taken (`PanelDisplay::LongestWriteUs`), not the
+  shorter of the last two. The frame that opens a new scene is late (the
+  scene loads in it) and changes the whole screen, while the frames before it
+  changed a little: started for theirs, it began too late, the refresh caught
+  it, and the screen tore across.
+- Tear-free with no TE line: `scanlineSync` reads the panel's scanline
+  (Get_Scanline, 0x45) back through the panel IO (`IPanelIO::Read`) at its
+  own clock (`spiReadHz`), on MISO or, with `readsOnMosi`, on the panel's
+  data line. `ScanlineClock` finds two refresh starts, where the count drops
+  from the last row to the blanking (it holds there; the low byte rolling
+  over at row 256 does not), and keeps the clock right with each start it
+  catches. On a LilyGO T-Deck Plus: 60.2 Hz found, every demo scene at 60
+  fps with frames in step with the refresh.
+- A frame that takes about a refresh to go out, or up to two, is started
+  just behind the refresh rather than at once (`PanelDisplay::WritesBehind`):
+  it never catches the refresh's rows up, and the next refresh shows it
+  whole. Before, such a frame was taken to tear wherever it started.
+- A turned frame is read a screen row at a time while it is turned, a run of
+  neighbouring pixels from each, instead of one pixel per screen row: a whole
+  frame in PSRAM, turned on the way out, went from 47.8 fps to 60 on the
+  T-Deck Plus.
+- `asyncPresent` and `scanlineSync` are on by default: a board gets frames
+  sent from the other core, and tear-free frames without a TE line, where it
+  can. Where it cannot (one core, no PSRAM for the copies, a panel that
+  cannot be read back) frames are sent as they are drawn, and the boot log
+  says so as information, not an error. Scenes that set them keep what they
+  set.

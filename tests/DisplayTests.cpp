@@ -6,6 +6,8 @@
 // - PanelController: reset, start-up, MADCTL, rotation offsets and windows,
 //   as bytes on a recording IPanelIO.
 // - SpiPanelIO: DC and chip select per transfer, on a recording SPI device.
+// - Rgb666PanelIO and ParallelPanelIO: 18-bit pixels, and the parallel bus's
+//   memory write and byte order.
 // - PanelDisplay: byte order, bands, merged regions and the overlay, sent as
 //   drawn and from a worker thread.
 // - DisplayPanelComponent: a boot scene runs where there is no SPI.
@@ -16,7 +18,9 @@
 #include "InitSequence.h"
 #include "PanelController.h"
 #include "PanelDisplay.h"
+#include "ParallelPanelIO.h"
 #include "QspiPanelIO.h"
+#include "Rgb666PanelIO.h"
 #include "SpiPanelIO.h"
 
 #include "DekiGPIO.h"
@@ -24,6 +28,7 @@
 
 #include <deki/Engine.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <string>
@@ -1226,11 +1231,34 @@ TEST(TearFreeStart, AFrameThatMissedARefreshWaitsOnlyForItsWindow)
     EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 3000), kRefresh - 3000 + 1000);
     // Not known yet: the next refresh's start, as before.
     EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 0), kRefresh);
-    // As slow as a refresh, or slower: no start is tear-free, so at once.
-    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, kRefresh - 1000), 0u);
-    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 25000), 0u);
+    // About a refresh or slower, up to two: behind it, once its blanking is
+    // past.
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, kRefresh - 500), 1500u);
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 25000), 1000u);
+    EXPECT_FALSE(PanelDisplay::WritesBehind(kRefresh, 12000));
+    EXPECT_TRUE(PanelDisplay::WritesBehind(kRefresh, kRefresh - 500));
+    // Two refreshes or more: no start is tear-free, so at once.
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, 2 * kRefresh), 0u);
     // Inside the refresh, and later the faster the write.
     EXPECT_LT(PanelDisplay::TearFreeStartUs(kRefresh, 12000), PanelDisplay::TearFreeStartUs(kRefresh, 8000));
+}
+
+// A late frame is started for the longest write seen, not the last few: after
+// frames that changed a little, the one that changes everything (a new
+// scene) would otherwise start too late and be caught by the refresh.
+TEST(TearFreeStart, ALateFrameIsStartedForTheLongestWrite)
+{
+    constexpr uint32_t kRefresh = 16780;
+    uint32_t longest = 0;
+    longest = PanelDisplay::LongestWriteUs(longest, 11000, kRefresh);  // a whole screen
+    longest = PanelDisplay::LongestWriteUs(longest, 2000, kRefresh);   // then small changes
+    longest = PanelDisplay::LongestWriteUs(longest, 1500, kRefresh);
+    EXPECT_EQ(longest, 11000u);
+    // A write of two refreshes is a stall, not a frame to start for; one a
+    // little over a refresh is a whole screen on a slow bus.
+    EXPECT_EQ(PanelDisplay::LongestWriteUs(longest, 40000, kRefresh), 11000u);
+    EXPECT_EQ(PanelDisplay::LongestWriteUs(longest, 17000, kRefresh), 17000u);
+    EXPECT_EQ(PanelDisplay::TearFreeStartUs(kRefresh, longest), kRefresh - 11000 + 1000);
 }
 
 TEST_F(DisplayTest, ATurnedPanelIsSentInItsOwnRowsFromItsRefresh)
@@ -1572,4 +1600,316 @@ TEST_F(DisplayTest, AsyncTurnedFramesAndStripsSendTheSameBytes)
     ASSERT_TRUE(display.SetAsyncPresent(false));
     EXPECT_FALSE(display.LendsStripBuffers());
     PanelDisplay::SetWorkerBackend(nullptr);
+}
+
+// --- The other controllers ---
+
+TEST_F(DisplayTest, EveryControllerStartsWithItsOwnTable)
+{
+    const struct
+    {
+        Controller controller;
+        const char* name;
+        const char* first;
+        const char* last;  // the table's last command, before inversion
+    } cases[] = {
+        { Controller::ST7789, "ST7789", "B7 35", "29" },         { Controller::RM67162, "RM67162", "FE 00", "51 AF" },
+        { Controller::ILI9341, "ILI9341", "EF 03 80 02", "29" }, { Controller::ST7735, "ST7735", "01", "29" },
+        { Controller::ST7735S, "ST7735S", "01", "29" },          { Controller::GC9A01, "GC9A01", "EF", "29" },
+        { Controller::ST7789P3, "ST7789P3", "11", "2C" },        { Controller::ST7796, "ST7796", "F0 C3", "29" },
+        { Controller::ILI9488, "ILI9488", "C0 17 15", "29" },    { Controller::SSD1351, "SSD1351", "FD 12", "A5" },
+        { Controller::CO5300, "CO5300", "FE 00", "51 80" },
+    };
+    for (const auto& k : cases)
+    {
+        RecordingIO io;
+        PanelController panel(io, &RecordDelay);
+        PanelConfig c;
+        c.controller = k.controller;
+        g_Events.clear();
+        ASSERT_TRUE(panel.Init(c, nullptr)) << k.name;
+        EXPECT_STREQ(panel.GetInfo().name, k.name);
+        const std::vector<std::string> cmds = Commands();
+        EXPECT_EQ(cmds.front(), k.first) << k.name;
+        // Then inversion, the pixel format where it has one, and MADCTL.
+        const size_t after = panel.GetInfo().commands.colmod != 0 ? 3 : 2;
+        ASSERT_GT(cmds.size(), after) << k.name;
+        EXPECT_EQ(cmds[cmds.size() - after - 1], k.last) << k.name;
+    }
+}
+
+TEST_F(DisplayTest, TheST7735SStartUpIsBothOfLovyanGFXsLists)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::ST7735S;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    const std::vector<std::string> cmds = Commands();
+    EXPECT_EQ(cmds[11], "C5 0E");                  // the first list's end
+    EXPECT_EQ(cmds[12].substr(0, 8), "E0 02 1C");  // the second's start
+}
+
+TEST_F(DisplayTest, TheSSD1351TakesItsOwnCommands)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::SSD1351;
+    c.panelWidth = 128;
+    c.panelHeight = 128;
+    c.rgbOrder = false;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    const std::vector<std::string> cmds = Commands();
+    // Its table, then normal display (inversion off), no COLMOD, and its
+    // remap: 65k colours, BGR.
+    ASSERT_GE(cmds.size(), 2u);
+    EXPECT_EQ(cmds[cmds.size() - 2], "A6");
+    EXPECT_EQ(cmds.back(), "A0 64");
+
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(2, 3, 10, 20));
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "15 02 09", "75 03 13" }));  // a byte each
+    ASSERT_EQ(Of(Event::Start).size(), 1u);
+    EXPECT_EQ(Of(Event::Start).front().cmd, 0x5C);
+
+    // Turned a quarter, its column command takes the rows.
+    ASSERT_TRUE(panel.SetRotation(1));
+    EXPECT_EQ(Commands().back(), "A0 67");
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(2, 3, 10, 20));
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "75 02 09", "15 03 13" }));
+
+    g_Events.clear();
+    panel.SetInvert(true);
+    panel.SetDisplayOn(false);
+    panel.SetDisplayOn(true);
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "A7", "AE", "AF" }));
+}
+
+TEST_F(DisplayTest, ATurnedGC9A01OpensItsRowsBeforeNewColumns)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::GC9A01;
+    c.panelWidth = 240;
+    c.panelHeight = 240;
+    c.rotation = 1;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(0, 0, 10, 10));
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B FF FF FF FF", "2A 00 00 00 09", "2B 00 00 00 09" }));
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(0, 5, 10, 10));  // the same columns: rows only
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2B 00 05 00 09" }));
+
+    // Upright it needs no such step.
+    ASSERT_TRUE(panel.SetRotation(0));
+    g_Events.clear();
+    ASSERT_TRUE(panel.SetWindow(0, 0, 10, 10));
+    EXPECT_EQ(Commands(), (std::vector<std::string>{ "2A 00 00 00 09", "2B 00 00 00 09" }));
+}
+
+TEST_F(DisplayTest, AnSSD1351HasNoTeToWaitFor)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c = SmallPanel(4, 4);
+    c.controller = Controller::SSD1351;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.tePin = 9;
+    ASSERT_TRUE(display.Start(options));
+    EXPECT_FALSE(display.IsTearFree());
+}
+
+// --- 18 bits a pixel (the ILI9488 over SPI) ---
+
+TEST_F(DisplayTest, EighteenBitPixelsAreSetInColmod)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    PanelConfig c;
+    c.controller = Controller::ILI9488;
+    c.pixels18 = true;
+    ASSERT_TRUE(panel.Init(c, nullptr));
+    const std::vector<std::string> cmds = Commands();
+    EXPECT_NE(std::find(cmds.begin(), cmds.end(), "3A 66"), cmds.end());
+    EXPECT_EQ(std::find(cmds.begin(), cmds.end(), "3A 55"), cmds.end());
+}
+
+TEST(Rgb666PanelIO, WidensEachPixelToThreeBytes)
+{
+    const uint8_t in[] = { 0xF8, 0x00, 0x07, 0xE0, 0x00, 0x1F, 0x84, 0x10 };
+    uint8_t out[12] = {};
+    Rgb666PanelIO::Widen(in, 4, out);
+    // Red, green and blue at full, and a grey: each channel's high bits
+    // repeated below it.
+    EXPECT_EQ(std::vector<uint8_t>(out, out + 12),
+              (std::vector<uint8_t>{ 0xFF, 0, 0, 0, 0xFF, 0, 0, 0, 0xFF, 0x84, 0x82, 0x84 }));
+}
+
+TEST(Rgb666PanelIO, APartLongerThanABufferGoesInPiecesBehindEachOther)
+{
+    g_Events.clear();
+    RecordingIO inner;
+    inner.maxChunk = 12;  // four RGB666 pixels a piece
+    Rgb666PanelIO io(inner);
+    EXPECT_EQ(io.GetMaxChunkBytes(), 8u);
+    EXPECT_TRUE(io.PixelsBigEndian());
+    std::vector<uint8_t> red;
+    for (int i = 0; i < 10; ++i)
+    {
+        red.push_back(0xF8);
+        red.push_back(0x00);
+    }
+    ASSERT_TRUE(io.StartPixels(0x2C));
+    ASSERT_TRUE(io.QueuePixels(red.data(), red.size(), false));
+    const std::vector<Event> parts = Of(Event::Pixels);
+    ASSERT_EQ(parts.size(), 3u);  // 4, 4 and 2 pixels
+    EXPECT_EQ(parts[0].bytes.size(), 12u);
+    EXPECT_TRUE(parts[0].more);
+    EXPECT_TRUE(parts[1].more);
+    EXPECT_EQ(parts[2].bytes.size(), 6u);
+    EXPECT_FALSE(parts[2].more);
+    EXPECT_EQ(parts[2].bytes, (std::vector<uint8_t>{ 0xFF, 0, 0, 0xFF, 0, 0 }));
+    EXPECT_EQ(io.GetQueuedCount(), 1u);
+    EXPECT_EQ(Of(Event::Start).size(), 1u);
+}
+
+// --- The parallel bus ---
+
+namespace
+{
+
+// A parallel bus that records what is sent on it.
+class RecordingParallelBus : public IParallelBus
+{
+public:
+    struct Sent
+    {
+        bool command = false;
+        int32_t cmd = -1;
+        std::vector<uint8_t> bytes;
+    };
+    uint8_t width = 8;
+    std::vector<Sent> sent;
+    int fullWaits = 0;
+
+    bool Command(uint8_t cmd, const uint8_t* params, size_t n) override
+    {
+        sent.push_back({ true, cmd, std::vector<uint8_t>(params, params + n) });
+        return true;
+    }
+    bool QueuePixels(int32_t cmd, const void* data, size_t bytes) override
+    {
+        const auto* p = static_cast<const uint8_t*>(data);
+        sent.push_back({ false, cmd, std::vector<uint8_t>(p, p + bytes) });
+        return true;
+    }
+    bool Wait(size_t leaveInFlight) override
+    {
+        fullWaits += leaveInFlight == 0 ? 1 : 0;
+        return true;
+    }
+    size_t GetMaxTransferBytes() const override { return 64; }
+    uint8_t GetWidth() const override { return width; }
+};
+
+ParallelBusConfig g_ParallelAsked;
+std::unique_ptr<IParallelBus> ParallelThatDoesNotStart(const ParallelBusConfig& config)
+{
+    g_ParallelAsked = config;
+    return nullptr;
+}
+
+}  // namespace
+
+TEST(ParallelPanelIO, TheMemoryWriteGoesWithTheFirstPartOnly)
+{
+    RecordingParallelBus bus;
+    ParallelPanelIO io(bus);
+    const uint8_t window[4] = { 0, 1, 0, 9 };
+    const uint8_t pixels[4] = { 1, 2, 3, 4 };
+    ASSERT_TRUE(io.Begin());
+    ASSERT_TRUE(io.Command(0x2A, window, 4));
+    ASSERT_TRUE(io.StartPixels(0x2C));
+    ASSERT_TRUE(io.QueuePixels(pixels, 4, true));
+    ASSERT_TRUE(io.QueuePixels(pixels, 4, false));
+    io.End();
+    ASSERT_EQ(bus.sent.size(), 3u);
+    EXPECT_TRUE(bus.sent[0].command);
+    EXPECT_EQ(bus.sent[0].bytes, std::vector<uint8_t>(window, window + 4));
+    EXPECT_EQ(bus.sent[1].cmd, 0x2C);
+    EXPECT_EQ(bus.sent[2].cmd, -1);
+    EXPECT_EQ(io.GetQueuedCount(), 2u);
+    EXPECT_EQ(bus.fullWaits, 1);  // the outermost End waits for everything
+}
+
+TEST(ParallelPanelIO, EightLinesTakeThePixelHighByteFirstSixteenLowByteOnD0)
+{
+    RecordingParallelBus bus;
+    ParallelPanelIO io(bus);
+    EXPECT_TRUE(io.PixelsBigEndian());
+    bus.width = 16;
+    EXPECT_FALSE(io.PixelsBigEndian());
+}
+
+TEST_F(DisplayTest, OnSixteenLinesALittleEndianFrameGoesOutUnswapped)
+{
+    RecordingParallelBus bus;
+    bus.width = 16;
+    ParallelPanelIO io(bus);
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 1), nullptr));
+    PanelDisplay display(panel, io);
+    ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+    bus.sent.clear();
+    const std::vector<uint8_t> frame = Frame565({ 0x1234, 0xABCD });
+    display.Present(frame.data(), 2, 1, Deki::ColorFormat::RGB565);
+    std::vector<uint8_t> wire;
+    for (const RecordingParallelBus::Sent& s : bus.sent)
+    {
+        if (!s.command)
+        {
+            wire.insert(wire.end(), s.bytes.begin(), s.bytes.end());
+        }
+    }
+    EXPECT_EQ(wire, (std::vector<uint8_t>{ 0x34, 0x12, 0xCD, 0xAB }));
+}
+
+TEST_F(DisplayTest, AParallelBootSceneRunsWhereThereIsNoParallelBus)
+{
+    ParallelBus::SetFactory(nullptr);
+    DisplayPanelComponent c;
+    c.busType = DisplayBus::Parallel8;
+    EXPECT_TRUE(RunSetup(c));
+}
+
+TEST_F(DisplayTest, AParallelPanelAsksForItsWiring)
+{
+    ParallelBus::SetFactory(&ParallelThatDoesNotStart);
+    DisplayPanelComponent c;
+    c.busType = DisplayBus::Parallel16;
+    c.d0Pin = 10;
+    c.d7Pin = 17;
+    c.d15Pin = 25;
+    c.wrPin = 5;
+    c.rdPin = 4;
+    c.dcPin = 6;
+    c.csPin = 7;
+    c.parallelWriteHz = 12000000;
+    EXPECT_FALSE(RunSetup(c));  // the bus did not start
+    EXPECT_EQ(g_ParallelAsked.width, 16);
+    EXPECT_EQ(g_ParallelAsked.dataPins[0], 10);
+    EXPECT_EQ(g_ParallelAsked.dataPins[7], 17);
+    EXPECT_EQ(g_ParallelAsked.dataPins[15], 25);
+    EXPECT_EQ(g_ParallelAsked.wrPin, 5);
+    EXPECT_EQ(g_ParallelAsked.rdPin, 4);
+    EXPECT_EQ(g_ParallelAsked.dcPin, 6);
+    EXPECT_EQ(g_ParallelAsked.csPin, 7);
+    EXPECT_EQ(g_ParallelAsked.clockHz, 12000000u);
+    ParallelBus::SetFactory(nullptr);
 }

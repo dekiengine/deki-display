@@ -8,44 +8,90 @@ namespace DekiDisplay
 {
 
 /// The panel controllers this package drives. Scenes store the name.
-/// The panel controllers this package drives. Scenes store the name.
-/// RM67162 is an AMOLED controller that only speaks quad SPI.
+///
+/// - Over SPI or a parallel bus: ST7789, ST7789P3, ILI9341, ILI9488, ST7796,
+///   ST7735 (the B version), ST7735S (the R version), GC9A01 and SSD1351
+///   (an OLED, with its own commands).
+/// - Over quad SPI only: RM67162 and CO5300, AMOLED controllers.
 enum class Controller : uint8_t
 {
     ST7789 = 0,
-    RM67162 = 1
+    RM67162 = 1,
+    ILI9341 = 2,
+    ST7735 = 3,
+    ST7735S = 4,
+    GC9A01 = 5,
+    ST7789P3 = 6,
+    ST7796 = 7,
+    ILI9488 = 8,
+    SSD1351 = 9,
+    CO5300 = 10
 };
 
-/// A controller as data: what differs between MIPI DCS controllers is the
-/// start-up, the MADCTL bits per rotation and a few quirks, not the commands.
+/// The commands a controller takes for what PanelController does. The MIPI
+/// DCS controllers (all but the SSD1351) take these defaults.
+struct ControllerCommands
+{
+    uint8_t columns = 0x2A;
+    uint8_t rows = 0x2B;
+    uint8_t memoryWrite = 0x2C;
+    uint8_t madctl = 0x36;
+    /// The pixel format command, or 0 where the format is part of MADCTL.
+    uint8_t colmod = 0x3A;
+    uint8_t invertOff = 0x20;
+    uint8_t invertOn = 0x21;
+    uint8_t sleepIn = 0x10;
+    uint8_t sleepOut = 0x11;
+    uint8_t displayOff = 0x28;
+    uint8_t displayOn = 0x29;
+    uint8_t nop = 0x00;
+    /// Bytes per window coordinate: 2 (start and end, high byte first) or 1.
+    uint8_t windowBytes = 2;
+    /// The column and row commands trade places when the panel is turned a
+    /// quarter: the SSD1351 turns its address counter, not its window.
+    bool windowTurns = false;
+
+    /// True for the MIPI DCS set: TE on with 0x35, MADCTL's usual bits.
+    bool IsMipiDcs() const { return madctl == 0x36; }
+};
+
+/// A controller as data: what differs between controllers is the start-up,
+/// the MADCTL bits per rotation and a few quirks, more than the commands.
 struct ControllerInfo
 {
-    const char* name;
+    const char* name = "";
     /// The controller's memory, which a panel module may show only part of.
-    uint16_t memoryWidth;
-    uint16_t memoryHeight;
+    uint16_t memoryWidth = 240;
+    uint16_t memoryHeight = 320;
     /// The default start-up, in LovyanGFX's table format (InitSequenceFromTable).
-    const uint8_t* defaultInit;
+    const uint8_t* defaultInit = nullptr;
     /// MADCTL for rotations 0-7 (quarter turns, then the same mirrored),
     /// before the colour-order bit.
-    uint8_t madctl[8];
+    uint8_t madctl[8] = {};
     /// The MADCTL bit for BGR order, set when the panel is not rgbOrder.
-    uint8_t bgrBit;
+    uint8_t bgrBit = 0x08;
     /// A NOP at the end of a write lets a panel with no chip select share its
     /// bus: the NOP ends what the panel would otherwise read as one long
     /// write. Off for a controller that misbehaves on NOP.
-    bool nopOnEnd;
+    bool nopOnEnd = true;
     /// Writes must start and end on a multiple of this many rows.
-    uint8_t rowAlign;
+    uint8_t rowAlign = 1;
     /// The visible panel's offset in memory turns with the rotation (the
     /// MIPI DCS controllers); false where the offset is applied as it is (the
     /// AMOLED controllers).
-    bool offsetsFollowRotation;
+    bool offsetsFollowRotation = true;
     /// The command that sets brightness (0x51 on an AMOLED, which has no
     /// backlight), or 0 for none.
-    uint8_t brightnessCmd;
+    uint8_t brightnessCmd = 0;
     /// The brightness the panel is started at and turned back on to.
-    uint8_t onBrightness;
+    uint8_t onBrightness = 0;
+    /// Takes no RGB565 over SPI, only 18 bits a pixel (the ILI9488): pixels
+    /// go out as RGB666, three bytes each (Rgb666PanelIO).
+    bool spiNeeds18Bits = false;
+    /// Turned a quarter, a new column range is only taken after the row range
+    /// is opened up (the GC9A01).
+    bool openRowsBeforeColumns = false;
+    ControllerCommands commands;
 };
 
 /// The table entry for `c`; never null.
@@ -73,9 +119,11 @@ struct PanelConfig
     int32_t resetPin = -1;
     /// False for a panel whose chip select is tied low.
     bool hasChipSelect = true;
+    /// Pixels go out as RGB666, three bytes each, instead of RGB565.
+    bool pixels18 = false;
 };
 
-/// Drives one MIPI DCS panel controller through an IPanelIO: reset, start-up,
+/// Drives one panel controller through an IPanelIO: reset, start-up,
 /// rotation, inversion, sleep, and the window pixels are written into. Holds
 /// no pixels; PanelDisplay sends them.
 ///
@@ -90,7 +138,7 @@ public:
     PanelController(IPanelIO& io, DelayFn delay);
 
     /// Resets the panel, sends `init` (the controller's default when null or
-    /// empty), then inversion, RGB565 and the rotation. Leaves the panel on,
+    /// empty), then inversion, the pixel format and the rotation. Leaves the panel on,
     /// showing whatever its memory holds.
     bool Init(const PanelConfig& config, const InitSequence* init);
 
