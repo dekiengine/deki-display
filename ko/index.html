@@ -1,0 +1,318 @@
+<!-- HTML header for doxygen 1.18.0 - Deki.
+     Doxygen's own template plus the site's webfonts and the dekiengine.com
+     bar. The $-placeholders and the BEGIN/END comment markers are Doxygen's
+     template language, not commentary. See README.md in this directory. -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ko">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.18.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>deki-display: deki-display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="codefolding.js"></script>
+<script type="text/javascript" src="clipboard.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<script type="text/javascript" src="cookie.js"></script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="doxygen-awesome-sidebar-only.css" rel="stylesheet" type="text/css"/>
+<link href="deki.css" rel="stylesheet" type="text/css"/>
+</head>
+<body>
+<div class="deki-bar">
+  <a class="deki-brand" href="https://dekiengine.com/ko/">
+    <span class="deki-mark"><span class="deki-dot"></span></span>
+    <span class="deki-brand-name">DEKI<span class="deki-slash">/</span>ENGINE</span>
+  </a>
+  <span class="deki-bar-tag">문서</span>
+  <div class="deki-bar-links">
+    <a href="https://dekiengine.com/ko/"><span class="deki-nav-label">사이트</span></a>
+    <a href="https://dekiengine.com/ko/packages/"><span class="deki-nav-label">패키지</span></a>
+    <a href="https://dekiengine.com/ko/blog/"><span class="deki-nav-label">블로그</span></a>
+    <span class="deki-bar-sep"></span>
+    <a class="deki-chip" href="https://github.com/orgs/dekiengine/repositories" rel="noopener"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg><span>github</span></a>
+    <a class="deki-chip deki-chip-accent" href="https://dekiengine.com/ko/discord/" rel="noopener"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg><span>discord</span></a>
+    <a class="deki-chip deki-chip-solid" href="https://dekiengine.com/ko/donate/"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 3.9 12.4a4.8 4.8 0 0 1 0-6.8 4.8 4.8 0 0 1 6.8 0l1.3 1.3 1.3-1.3a4.8 4.8 0 0 1 6.8 0 4.8 4.8 0 0 1 0 6.8Z"/></svg><span>후원</span></a>
+    <details class="deki-lang"><summary aria-label="언어: 한국어"><span class="deki-nav-label">한국어</span></summary><div class="deki-lang-menu"><a href="../index.html" data-deki-root="../" hreflang="en" lang="en">English</a><a href="../ja/index.html" data-deki-root="../ja/" hreflang="ja" lang="ja">日本語</a><a href="../zh/index.html" data-deki-root="../zh/" hreflang="zh" lang="zh">简体中文</a><a href="../ko/index.html" data-deki-root="../ko/" hreflang="ko" lang="ko" aria-current="true">한국어</a></div></details>
+    <script>(function () {
+      var page = location.pathname.split('/').pop() || 'index.html';
+      if (!/^(index|pages|engine-core|settings|guide-[a-z0-9-]+)\.html$/.test(page)) return;
+      document.querySelectorAll('[data-deki-root]').forEach(function (a) {
+        a.href = a.getAttribute('data-deki-root') + page + location.hash;
+      });
+    })();</script>
+  </div>
+</div>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectalign">
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.20.2</span>
+   </div>
+   <div id="projectbrief">Deki 패키지 레퍼런스</div>
+  </td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- 다음에 의해 생성됨 :  Doxygen 1.18.0 -->
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', codefold.init);
+</script>
+<script type="application/json" id="doxygen-config">
+{
+  "relPath": "",
+  "generateTreeView": true,
+  "searchEngine": false,
+  "serverBasedSearch": false,
+  "disableIndex": false,
+  "dynamicMenus": true,
+  "fullSidebar": false
+}
+</script>
+<script type="text/javascript" src="menudata.js"></script>
+<script type="text/javascript" src="menu.js"></script>
+<div id="main-nav-mobile">
+</div><!-- main-nav-mobile -->
+<div id="main-nav">
+  <ul class="sm sm-dox" id="main-menu">
+    <li id="searchBoxPos2">
+    </li>
+  </ul>
+</div><!-- main-nav -->
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html','',''); });
+</script>
+<div id="container">
+<div id="doc-content">
+<div><div class="header">
+  <div class="headertitle"><div class="title">deki-display </div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
+<p>Deki 자체 디스플레이 라이브러리. 취미용 보드에서 흔히 쓰는 화면을 구동하고, 터치를 읽고, 모든 프레임을 온전히 보냅니다.</p>
+<p>저장소: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 최신 릴리스: 0.20.0 · 엔진 0.20.0 이상 필요 · 의존: <a href="https://dekiengine.github.io/deki-spi/ko/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ko/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ko/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ko/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ko/">deki-rendering</a></p>
+<p><span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> 또는 패키지 관리자로 설치합니다. 엔진 자체의 컴포넌트와 C++ API는 <a href="https://dekiengine.github.io/docs/ko/">Deki 문서</a>에 있습니다.</p>
+<p>에디터에는 <b>Display</b>(으)로 표시됩니다.</p>
+<h1 class="doxsection"><a class="anchor" id="components"></a>
+컴포넌트</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">컴포넌트  </th><th class="markdownTableHeadNone">카테고리  </th><th class="markdownTableHeadNone">설명  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><a class="el" href="#c-displaypanelcomponent" title="DisplayPanelComponent">DisplayPanelComponent</a>  </td><td class="markdownTableBodyNone">디스플레이  </td><td class="markdownTableBodyNone">Deki 자체 디스플레이 라이브러리로 SPI, 쿼드 SPI 또는 8비트·16비트 병렬 버스를 통해 디스플레이 패널(ST7789, ILI9341, GC9A01 등)을 구동하고 엔진에 넘깁니다.  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><a class="el" href="#c-touchpanelcomponent" title="TouchPanelComponent">TouchPanelComponent</a>  </td><td class="markdownTableBodyNone">디스플레이  </td><td class="markdownTableBodyNone">Deki 자체 디스플레이 라이브러리로 패널의 터치 컨트롤러(I2C의 GT911, CST816, FT5x06; SPI의 XPT2046)를 읽어 포인터 입력으로 사용합니다.  </td></tr>
+</table>
+<h1 class="doxsection"><a class="anchor" id="feature-flags"></a>
+기능 플래그</h1>
+<p>빌드에서 뺄 수 있는 부분입니다. define이 있는 기능은 그 define으로 켜고 끄며, 나머지는 컴포넌트와 함께 제거됩니다.</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">기능  </th><th class="markdownTableHeadNone">define  </th><th class="markdownTableHeadNone">기본값  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Display Panel  </td><td class="markdownTableBodyNone"><span class="tt">DEKI_FEATURE_DISPLAY_PANEL</span>  </td><td class="markdownTableBodyNone">켜짐  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Touch Panel  </td><td class="markdownTableBodyNone"><span class="tt">DEKI_FEATURE_DISPLAY_TOUCH</span>  </td><td class="markdownTableBodyNone">켜짐  </td></tr>
+</table>
+<h1 class="doxsection"><a class="anchor" id="component-reference"></a>
+컴포넌트 레퍼런스</h1>
+<h2 class="doxsection"><a class="anchor" id="c-displaypanelcomponent"></a>
+DisplayPanelComponent</h2>
+<p>Deki 자체 디스플레이 라이브러리로 SPI, 쿼드 SPI 또는 8비트·16비트 병렬 버스를 통해 디스플레이 패널(ST7789, ILI9341, GC9A01 등)을 구동하고 엔진에 넘깁니다.</p>
+<p>인스펙터 이름: 디스플레이 패널 컴포넌트 · 카테고리: 디스플레이 · 유형: <span class="tt">DekiDisplay::DisplayPanelComponent</span></p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">속성  </th><th class="markdownTableHeadNone">유형  </th><th class="markdownTableHeadNone">기본값  </th><th class="markdownTableHeadNone">제약  </th><th class="markdownTableHeadNone">설명  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">controller</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"ST7789"</span>  </td><td class="markdownTableBodyNone"><span class="tt">ST7789</span>, <span class="tt">RM67162</span>, <span class="tt">ILI9341</span>, <span class="tt">ST7735</span>, <span class="tt">ST7735S</span>, <span class="tt">GC9A01</span>, <span class="tt">ST7789P3</span>, <span class="tt">ST7796</span>, <span class="tt">ILI9488</span>, <span class="tt">SSD1351</span>, <span class="tt">CO5300</span>  </td><td class="markdownTableBodyNone">패널의 컨트롤러 IC  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">initSequence</span>  </td><td class="markdownTableBodyNone">string  </td><td class="markdownTableBodyNone"><span class="tt">""</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">이 패널 모듈을 시작하는 명령으로, 컨트롤러의 기본 명령을 대신합니다. 패널의 전압, VCOM, 감마는 컨트롤러가 아니라 모듈마다 다르므로 보드가 여기서 설정합니다. 한 줄 또는 ';'마다 명령 하나: 16진수 명령 바이트, 이어서 매개변수 바이트, 필요하면 'delay &lt;ms&gt;'를 씁니다. '#' 뒤는 주석입니다. 비워 두면 컨트롤러의 기본 명령을 사용합니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">panelWidth</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">240</span>  </td><td class="markdownTableBodyNone">1~1024  </td><td class="markdownTableBodyNone">회전 전의 보이는 너비 (픽셀)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">panelHeight</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">320</span>  </td><td class="markdownTableBodyNone">1~1024  </td><td class="markdownTableBodyNone">회전 전의 보이는 높이 (픽셀)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">rotation</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"Landscape"</span>  </td><td class="markdownTableBodyNone"><span class="tt">Portrait</span>, <span class="tt">Landscape</span>, <span class="tt">Portrait180</span>, <span class="tt">Landscape270</span>, <span class="tt">PortraitMirror</span>, <span class="tt">LandscapeMirror</span>, <span class="tt">Portrait180Mirror</span>, <span class="tt">Landscape270Mirror</span>  </td><td class="markdownTableBodyNone">패널의 방향  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">offsetX</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">컨트롤러 메모리에서 보이는 패널이 시작하는 위치, 가로 방향 (원점이 0이 아닌 패널용)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">offsetY</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">컨트롤러 메모리에서 보이는 패널이 시작하는 위치, 세로 방향  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">invertColor</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">패널 색상을 반전합니다 (대부분의 IPS 패널은 켜야 합니다)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">rgbOrder</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">패널이 빨강을 먼저 받습니다. 끄면 컨트롤러의 BGR 순서를 설정합니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">busType</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"SPI"</span>  </td><td class="markdownTableBodyNone"><span class="tt">SPI</span>, <span class="tt">QSPI</span>, <span class="tt">Parallel8</span>, <span class="tt">Parallel16</span>  </td><td class="markdownTableBodyNone">패널의 배선 방식입니다. 데이터/커맨드 핀이 있는 SPI(대부분의 LCD), 쿼드 SPI(RM67162 같은 AMOLED 패널. IO2와 IO3가 있는 SPI Bus가 필요함), 또는 8비트·16비트 병렬 버스(8080. 이 컴포넌트가 직접 시작함)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">spiHost</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">0~3; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">패널이 연결된 SPI 호스트입니다. 이를 시작하는 SPI Bus 컴포넌트와 같은 번호로 지정합니다 (ESP32-S3에서는 1 = SPI2, 2 = SPI3)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">spiWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">40000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">패널의 SPI 클럭입니다. 80 MHz는 ESP32-S3의 최고 속도이며, 대부분의 ST7789 모듈이 지원합니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">parallelWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">20000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">병렬 버스의 쓰기 스트로브 주파수입니다. 대부분의 패널은 20 MHz를 지원하며, 배선이 짧으면 더 높여도 됩니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">dcPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터/커맨드 핀 (DC, RS라고도 함)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">wrPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">쓰기 스트로브 핀(WR)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">rdPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">읽기 스트로브 핀(RD)으로, High로 유지합니다. 패널에는 쓰기만 합니다 (-1 = 보드에서 High로 고정)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d0Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D0  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d1Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D1  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d2Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D2  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d3Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D3  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d4Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D4  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d5Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D5  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d6Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D6  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d7Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D7  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d8Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D8  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d9Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D9  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d10Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D10  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d11Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D11  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d12Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D12  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d13Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D13  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">d14Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D14  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">d15Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">데이터 라인 D15  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">csPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48  </td><td class="markdownTableBodyNone">칩 셀렉트 핀 (-1 = Low에 고정)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">rstPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48  </td><td class="markdownTableBodyNone">리셋 핀 (-1 = 연결 안 됨)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">tePin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48  </td><td class="markdownTableBodyNone">패널의 티어링 이펙트(TE) 출력입니다 (-1 = 연결 안 됨). 연결하면 프레임이 찢어지지 않습니다. 각 프레임은 패널이 새로 고침을 시작할 때 보내기 시작하며, 패널 자체의 행 순서로 보냅니다. 회전된 화면은 보낼 때 회전하고 열 스트립으로 그립니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">TE 선이 연결되어 있지 않으면 대신 패널의 주사선을 읽어 프레임이 여전히 찢어지지 않게 합니다. 다시 읽을 수 없는 패널은 그리는 대로 보내며, 부팅 로그에 그렇게 나옵니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">spiReadHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">10000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">패널을 다시 읽을 때의 SPI 클럭으로, 쓰기보다 느리게 합니다 (ST7789는 10 MHz에서 안정적으로 읽힘)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">readsOnMosi</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">패널이 MISO가 아니라 데이터 입력 선으로 응답합니다 (LilyGO T-Deck처럼 SDA가 양방향)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">blPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48  </td><td class="markdownTableBodyNone">백라이트 핀 (-1 = 없음). 켜져 있는 동안 High로 유지합니다. 펄스 수로 밝기를 조절하는 백라이트 드라이버(LilyGO T-Deck의 것)에는 바로 이것이 필요합니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">blInvert</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">핀이 Low일 때 백라이트가 켜집니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">memoryWidth</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0~1024  </td><td class="markdownTableBodyNone">컨트롤러 메모리상의 너비로, 보이는 너비보다 클 수 있습니다 (0 = 컨트롤러의 값)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">memoryHeight</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0~1024  </td><td class="markdownTableBodyNone">컨트롤러 메모리상의 높이 (0 = 컨트롤러의 값)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">프레임 버퍼를 내부 RAM 대신 PSRAM에 둡니다. 화면 한 장 분량의 내부 RAM이 확보되지만, 그리기가 느려집니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">프레임 버퍼 두 개를 쓰고 매 프레임 후 교체합니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">다음 프레임을 그리는 동안 칩의 다른 코어에서 각 프레임을 보냅니다. 한 프레임에 걸리는 시간은 그리기와 보내기의 합이 아니라 더 긴 쪽이 됩니다. 듀얼 코어 칩과 외부 메모리(PSRAM) 두 프레임 분량이 필요하며, 없으면 그리는 대로 보내고 부팅 로그에 그렇게 나옵니다  </td></tr>
+</table>
+<h2 class="doxsection"><a class="anchor" id="c-touchpanelcomponent"></a>
+TouchPanelComponent</h2>
+<p>Deki 자체 디스플레이 라이브러리로 패널의 터치 컨트롤러(I2C의 GT911, CST816, FT5x06; SPI의 XPT2046)를 읽어 포인터 입력으로 사용합니다.</p>
+<p>인스펙터 이름: 터치 패널 컴포넌트 · 카테고리: 디스플레이 · 유형: <span class="tt">DekiDisplay::TouchPanelComponent</span></p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">속성  </th><th class="markdownTableHeadNone">유형  </th><th class="markdownTableHeadNone">기본값  </th><th class="markdownTableHeadNone">제약  </th><th class="markdownTableHeadNone">설명  </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">controller</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"GT911"</span>  </td><td class="markdownTableBodyNone"><span class="tt">GT911</span>, <span class="tt">CST816</span>, <span class="tt">FT5x06</span>, <span class="tt">XPT2046</span>  </td><td class="markdownTableBodyNone">터치 컨트롤러 IC  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">i2cPort</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0~3; <span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">연결된 I2C 포트 (이 컴포넌트보다 먼저 I2C Bus 컴포넌트가 그 포트를 시작해야 합니다)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">i2cAddress</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0~127; <span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">I2C 주소입니다. 0이면 컨트롤러의 일반 주소를 사용합니다 (GT911: 0x5D, 응답이 없으면 0x14; CST816: 0x15; FT5x06: 0x38)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">spiHost</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">0~3; <span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">연결된 SPI 호스트입니다. 이를 시작하는 SPI Bus 컴포넌트와 같은 번호로 지정합니다 (보통 디스플레이와 같음)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">csPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">칩 셀렉트 핀  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">spiHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">터치 컨트롤러의 SPI 클럭입니다. XPT2046은 1 MHz에서 잘 읽히며 최대 2.5 MHz까지 지원합니다  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">intPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48  </td><td class="markdownTableBodyNone">인터럽트 핀: 읽을 터치 보고가 있거나 눌려 있는 동안(XPT2046의 PENIRQ) 컨트롤러가 Low로 내립니다 (-1 = 연결 안 됨, 매 프레임 읽음)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">rstPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1~48; <span class="tt">controller</span>이(가) 허용할 때 표시  </td><td class="markdownTableBodyNone">리셋 핀 (-1 = 연결 안 됨)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">xMin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">터치 컨트롤러가 보고하는 원시 X의 최솟값으로, 디스플레이를 회전하기 전 패널의 너비 방향 값입니다 (정전식: 0; XPT2046은 약 300부터 시작하며 보정이 필요함)  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">xMax</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">239</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">터치 컨트롤러가 보고하는 원시 X의 최댓값으로, 디스플레이를 회전하기 전 패널의 너비 방향 값입니다 (240x320 패널을 가로로 표시하는 경우: 239)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">yMin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">터치 컨트롤러가 보고하는 원시 Y의 최솟값으로, 디스플레이를 회전하기 전 패널의 높이 방향 값입니다  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">yMax</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">319</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">터치 컨트롤러가 보고하는 원시 Y의 최댓값으로, 디스플레이를 회전하기 전 패널의 높이 방향 값입니다 (240x320 패널을 가로로 표시하는 경우: 319)  </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><span class="tt">offsetRotation</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"None"</span>  </td><td class="markdownTableBodyNone"><span class="tt">None</span>, <span class="tt">CW_90</span>, <span class="tt">CW_180</span>, <span class="tt">CW_270</span>, <span class="tt">Mirror</span>, <span class="tt">Mirror_CW_90</span>, <span class="tt">Mirror_CW_180</span>, <span class="tt">Mirror_CW_270</span>  </td><td class="markdownTableBodyNone">패널에 대한 터치 컨트롤러의 방향으로, 디스플레이 회전에 더해집니다. 컨트롤러가 패널 자체의 방향으로 좌표를 보고하면 없음입니다  </td></tr>
+</table>
+<h1 class="doxsection"><a class="anchor" id="changelog"></a>
+변경 내역</h1>
+<p>변경 내역은 영어로 되어 있습니다.</p>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
+0.20.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Changed</h2>
+<ul>
+<li><span class="tt">minEngine</span> 0.20.0: built against engine 0.20.0. A build of this package from before does not load and is rebuilt.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+Added</h2>
+<ul>
+<li>The package: <span class="tt">DisplayPanelComponent</span>, which starts a panel on a deki-spi bus from the boot scene and gives the engine <span class="tt">PanelDisplay</span>, a <span class="tt">Deki::IDisplay</span> presenting whole frames and changed rectangles with the UI overlay blended over them; <span class="tt">PanelController</span>, a MIPI DCS controller driven by a table per controller (ST7789 first, its start-up and MADCTL ported from LovyanGFX); <span class="tt">SpiPanelIO</span>, 4-wire SPI with pixels queued for DMA; and <span class="tt">initSequence</span>, a board's own start-up for its panel module, as text.</li>
+<li>Async present (<span class="tt">asyncPresent</span>): each frame is sent from the other core while the next is drawn. A whole frame is copied, swapped into the wire's byte order as it is copied, to one of two copies in external DMA memory, and sent from there by DMA in parts as long as the bus takes, with no bands in internal RAM; a strip is copied to one of two copies in internal DMA memory and swapped in place a chunk at a time. The worker holds the bus across back-to-back frames and strips, with each one's window commands queued behind the one before, so the wire does not wait between them; a copy goes back to the drawing core as soon as its last part is sent. The platform runs the worker through <span class="tt">PanelDisplay::SetWorkerBackend</span> (deki-esp32-integration: a FreeRTOS task pinned to the other core). On a LilyGO T-Deck Plus at 80 MHz with the frame rate uncapped: 63.2 fps in whole frames with 83.6 KB of internal RAM free, 61.0 in strips of 40 rows (LovyanGFX: 62.6 with 73.8 KB, and 60.2).</li>
+<li>Touch: <span class="tt">TouchPanelComponent</span> starts a GT911 (<span class="tt">GT911Touch</span>, ported from LovyanGFX's driver) on a deki-i2c bus, shared with whatever else is on it, and gives deki-input <span class="tt">PanelTouchInput</span>: a press, moves and a release at screen pixels, turned with the display by <span class="tt">TouchMapper</span> (LovyanGFX's default calibration and rotation, so a board's touch bounds carry over). Without an INT pin, a point that stops changing is released and not pressed again until it moves.</li>
+<li>QSPI panels: <span class="tt">DisplayPanelComponent</span>'s <span class="tt">busType</span> <span class="tt">QSPI</span> drives an AMOLED through <span class="tt">QspiPanelIO</span> (each register write framed 0x02, pixels 0x32 on four lines, as LovyanGFX frames them). The RM67162 is the first: its start-up, MADCTL and offsets ported from LovyanGFX, rows widened to even, and brightness by command where an LCD has a backlight.</li>
+<li>The CST816S/T touch controller (<span class="tt">TouchController::CST816</span>). It sleeps, and does not answer on I2C, until touched: it is set up when it first answers, and a read it does not answer is no touch.</li>
+<li>Async present works with render buffers (<span class="tt">usePsram</span>, <span class="tt">doubleBuffer</span>) too: the worker sends a copy, so the engine never draws into what is being sent.</li>
+<li>Tear-free presenting: <span class="tt">DisplayPanelComponent</span>'s <span class="tt">tePin</span>, the panel's tearing-effect output. A panel refreshes its own rows one after another, and a frame written while the refresh passes shows half of each frame. With TE on (<span class="tt">0x35</span>), each frame starts as the panel starts a refresh, and goes in the panel's own row order, which a write outruns the refresh in. A screen shown turned is turned as it is sent: the controller stays at its own orientation, and the renderer is asked for strips of columns in the order the panel refreshes them (deki-rendering's <span class="tt">IScanOrderedDisplay</span>). With async present the worker does the turning, a band at a time while the band before it is on the wire. Whole frames and strips both. A TE line that never pulses is said once in the log, and frames go on without waiting. On a LilyGO T-Display S3 AMOLED (its panel refreshes at 59.6 Hz): 59.5 fps in strips with no tearing, and 28.6 in whole frames, which take 25 ms to draw in PSRAM.</li>
+<li>More controllers, each a table ported from LovyanGFX 1.2.29: ILI9341, ST7735 (the B version), ST7735S (the R version), GC9A01, ST7789P3, ST7796, ILI9488 and SSD1351 on SPI or a parallel bus, and the CO5300 AMOLED on QSPI. A controller names its own commands (<span class="tt">ControllerCommands</span>): the SSD1351's window is a byte a coordinate, its column and row commands trade places when turned, and its remap takes MADCTL's place. The GC9A01 opens its rows before a turned window's columns, as LovyanGFX does. Checked against LovyanGFX's bytes in tests; none has run on a board yet.</li>
+<li>18 bits a pixel: the ILI9488 takes no RGB565 over SPI, so its pixels go out as RGB666 through <span class="tt">Rgb666PanelIO</span>, which widens each piece into its own DMA buffers while the piece before is sent, and COLMOD is 0x66.</li>
+<li>Parallel panels: <span class="tt">busType</span> <span class="tt">Parallel8</span> and <span class="tt">Parallel16</span>, an 8080 bus of 8 or 16 data lines with DC, WR and RD pins and its write clock (<span class="tt">parallelWriteHz</span>). The platform drives the bus (<span class="tt">ParallelBus</span>, a factory it registers; <span class="tt">ParallelPanelIO</span> speaks to it), and the component starts it itself. On 16 lines a pixel goes as memory holds it, so a little-endian frame needs no byte swap.</li>
+<li>Touch: the FT5x06 family (FT5206, FT6206, FT6336 and others) on I2C, and the XPT2046 resistive controller on SPI, both ported from LovyanGFX. The XPT2046's raw readings need calibrating in the touch bounds. A controller whose count or pressure says when the finger has gone (<span class="tt">ITouchController::MayRepeatLastTouch</span> false) is not released for holding still.</li>
+<li>Tear-free: a frame that missed its refresh's start is started for the longest write any frame has taken (<span class="tt">PanelDisplay::LongestWriteUs</span>), not the shorter of the last two. The frame that opens a new scene is late (the scene loads in it) and changes the whole screen, while the frames before it changed a little: started for theirs, it began too late, the refresh caught it, and the screen tore across.</li>
+<li>Tear-free with no TE line: <span class="tt">scanlineSync</span> reads the panel's scanline (Get_Scanline, 0x45) back through the panel IO (<span class="tt">IPanelIO::Read</span>) at its own clock (<span class="tt">spiReadHz</span>), on MISO or, with <span class="tt">readsOnMosi</span>, on the panel's data line. <span class="tt">ScanlineClock</span> finds two refresh starts, where the count drops from the last row to the blanking (it holds there; the low byte rolling over at row 256 does not), and keeps the clock right with each start it catches. On a LilyGO T-Deck Plus: 60.2 Hz found, every demo scene at 60 fps with frames in step with the refresh.</li>
+<li>A frame that takes about a refresh to go out, or up to two, is started just behind the refresh rather than at once (<span class="tt">PanelDisplay::WritesBehind</span>): it never catches the refresh's rows up, and the next refresh shows it whole. Before, such a frame was taken to tear wherever it started.</li>
+<li>A turned frame is read a screen row at a time while it is turned, a run of neighbouring pixels from each, instead of one pixel per screen row: a whole frame in PSRAM, turned on the way out, went from 47.8 fps to 60 on the T-Deck Plus.</li>
+<li><span class="tt">asyncPresent</span> and <span class="tt">scanlineSync</span> are on by default: a board gets frames sent from the other core, and tear-free frames without a TE line, where it can. Where it cannot (one core, no PSRAM for the copies, a panel that cannot be read back) frames are sent as they are drawn, and the boot log says so as information, not an error. Scenes that set them keep what they set.</li>
+</ul>
+<p>이전 릴리스: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
+<hr  />
+<p>패키지의 리플렉션 데이터에서 생성했습니다(엔진 0.20.2). 속성 이름은 씬 파일에서 쓰는 키입니다. 이름을 바꿔도 별칭이 유지됩니다(<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">호환성</a>). </p>
+</div></div><!-- PageDoc -->
+<a href="doxygen_crawl.html"></a>
+</div><!-- contents -->
+</div><!-- doc-content -->
+</div><!-- container -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">다음에 의해 생성됨 :  <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.18.0 </li>
+  </ul>
+</div>
+</body>
+</html>
