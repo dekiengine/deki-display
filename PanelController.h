@@ -45,6 +45,9 @@ struct ControllerCommands
     uint8_t displayOff = 0x28;
     uint8_t displayOn = 0x29;
     uint8_t nop = 0x00;
+    /// The software reset, sent at start-up when no reset line is wired, or
+    /// 0 for a controller without one.
+    uint8_t softwareReset = 0x01;
     /// Bytes per window coordinate: 2 (start and end, high byte first) or 1.
     uint8_t windowBytes = 2;
     /// The column and row commands trade places when the panel is turned a

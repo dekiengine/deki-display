@@ -367,12 +367,13 @@ TEST_F(DisplayTest, StartUpIsTheSequenceThenInversionColourAndRotation)
     ASSERT_TRUE(panel.Init(c, &seq));
 
     const std::vector<std::string> cmds = Commands();
-    ASSERT_EQ(cmds.size(), seq.size() + 3);
-    EXPECT_EQ(cmds[0], "11");
-    EXPECT_EQ(cmds[4], "BB 19");
-    EXPECT_EQ(cmds[seq.size()], "21");         // INVON
-    EXPECT_EQ(cmds[seq.size() + 1], "3A 55");  // RGB565
-    EXPECT_EQ(cmds[seq.size() + 2], "36 64");  // MADCTL: MV|MX|MH, red first
+    ASSERT_EQ(cmds.size(), seq.size() + 4);
+    EXPECT_EQ(cmds[0], "01");  // no reset line: a software reset first
+    EXPECT_EQ(cmds[1], "11");
+    EXPECT_EQ(cmds[5], "BB 19");
+    EXPECT_EQ(cmds[seq.size() + 1], "21");     // INVON
+    EXPECT_EQ(cmds[seq.size() + 2], "3A 55");  // RGB565
+    EXPECT_EQ(cmds[seq.size() + 3], "36 64");  // MADCTL: MV|MX|MH, red first
     EXPECT_EQ(panel.GetWidth(), 320);
     EXPECT_EQ(panel.GetHeight(), 240);
     EXPECT_EQ(io.depth, 0);
@@ -383,11 +384,11 @@ TEST_F(DisplayTest, NoSequenceStartsWithTheControllersDefault)
     RecordingIO io;
     PanelController panel(io, &RecordDelay);
     ASSERT_TRUE(panel.Init(PanelConfig{}, nullptr));
-    EXPECT_EQ(Commands().front(), "B7 35");
+    EXPECT_EQ(Commands()[1], "B7 35");
     InitSequence empty;
     g_Events.clear();
     ASSERT_TRUE(panel.Init(PanelConfig{}, &empty));
-    EXPECT_EQ(Commands().front(), "B7 35");
+    EXPECT_EQ(Commands()[1], "B7 35");
 }
 
 TEST_F(DisplayTest, MadctlSetsBgrUnlessThePanelIsRedFirst)
@@ -466,6 +467,48 @@ TEST_F(DisplayTest, ResetHoldsTheLineLowThenWaitsForTheController)
     EXPECT_EQ(g_Events[3].kind, Event::Delay);
     EXPECT_EQ(g_Events[3].ms, 64u);
     EXPECT_EQ(g_Events[4].kind, Event::Command);
+}
+
+// Without a reset line the controller is reset by command, then given the
+// 120 ms a MIPI DCS controller needs before it leaves sleep: nothing an
+// earlier firmware set survives. With a reset line, the line does that.
+TEST_F(DisplayTest, NoResetLineMeansASoftwareResetFirst)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(PanelConfig{}, nullptr));
+    size_t reset = g_Events.size();
+    for (size_t i = 0; i < g_Events.size(); ++i)
+    {
+        if (g_Events[i].kind == Event::Command)
+        {
+            reset = i;
+            break;
+        }
+    }
+    ASSERT_LT(reset + 1, g_Events.size());
+    EXPECT_EQ(Commands().front(), "01");
+    EXPECT_EQ(g_Events[reset + 1].kind, Event::Delay);
+    EXPECT_EQ(g_Events[reset + 1].ms, 120u);
+
+    g_Events.clear();
+    PanelConfig wired;
+    wired.resetPin = 5;
+    ASSERT_TRUE(panel.Init(wired, nullptr));
+    for (const std::string& cmd : Commands())
+    {
+        EXPECT_NE(cmd, "01");
+    }
+
+    // The SSD1351 has no such command.
+    g_Events.clear();
+    PanelConfig oled;
+    oled.controller = Controller::SSD1351;
+    ASSERT_TRUE(panel.Init(oled, nullptr));
+    for (const std::string& cmd : Commands())
+    {
+        EXPECT_NE(cmd, "01");
+    }
 }
 
 TEST_F(DisplayTest, AWriteEndsWithANopOnlyWithoutChipSelect)
@@ -664,9 +707,10 @@ TEST_F(DisplayTest, TheRM67162StartsAsLovyanGFXStartsIt)
     c.rgbOrder = false;  // no colour-order bit on this controller
     ASSERT_TRUE(panel.Init(c, nullptr));
     const std::vector<std::string> cmds = Commands();
-    ASSERT_GE(cmds.size(), 3u);
-    EXPECT_EQ(cmds[0], "FE 00");
-    EXPECT_EQ(cmds[1], "11");
+    ASSERT_GE(cmds.size(), 4u);
+    EXPECT_EQ(cmds[0], "01");
+    EXPECT_EQ(cmds[1], "FE 00");
+    EXPECT_EQ(cmds[2], "11");
     EXPECT_EQ(cmds[cmds.size() - 3], "20");     // INVOFF
     EXPECT_EQ(cmds[cmds.size() - 2], "3A 55");  // RGB565
     EXPECT_EQ(cmds.back(), "36 60");            // landscape, no BGR
@@ -750,6 +794,25 @@ TEST_F(DisplayTest, AnRGB565FrameGoesOutHighByteFirst)
     display.Present(frame.data(), 2, 2, Deki::ColorFormat::RGB565);
     EXPECT_EQ(Wire(), (std::vector<uint8_t>{ 0x12, 0x34, 0xAB, 0xCD, 0xF8, 0x00, 0x00, 0x1F }));
     // The frame is the engine's: never changed by the swap.
+    EXPECT_EQ(frame, Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F }));
+}
+
+// Swap Bytes: the same frame goes out low byte first, for a panel set up to
+// read its pixels that way round, and the engine's frame is still untouched.
+TEST_F(DisplayTest, SwapBytesSendsEachPixelLowByteFirst)
+{
+    RecordingIO io;
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(2, 2), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.swapBytes = true;
+    ASSERT_TRUE(display.Start(options));
+    g_Events.clear();
+
+    const std::vector<uint8_t> frame = Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F });
+    display.Present(frame.data(), 2, 2, Deki::ColorFormat::RGB565);
+    EXPECT_EQ(Wire(), (std::vector<uint8_t>{ 0x34, 0x12, 0xCD, 0xAB, 0x00, 0xF8, 0x1F, 0x00 }));
     EXPECT_EQ(frame, Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F }));
 }
 
@@ -1630,7 +1693,15 @@ TEST_F(DisplayTest, EveryControllerStartsWithItsOwnTable)
         ASSERT_TRUE(panel.Init(c, nullptr)) << k.name;
         EXPECT_STREQ(panel.GetInfo().name, k.name);
         const std::vector<std::string> cmds = Commands();
-        EXPECT_EQ(cmds.front(), k.first) << k.name;
+        // No reset line in these: a software reset first, unless the table
+        // starts with one or the controller has none.
+        const bool reset = panel.GetInfo().commands.softwareReset != 0 && std::string(k.first) != "01";
+        ASSERT_GT(cmds.size(), 1u) << k.name;
+        if (reset)
+        {
+            EXPECT_EQ(cmds[0], "01") << k.name;
+        }
+        EXPECT_EQ(cmds[reset ? 1 : 0], k.first) << k.name;
         // Then inversion, the pixel format where it has one, and MADCTL.
         const size_t after = panel.GetInfo().commands.colmod != 0 ? 3 : 2;
         ASSERT_GT(cmds.size(), after) << k.name;

@@ -208,6 +208,7 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     options.backlightInvert = blInvert;
     options.tePin = tePin;
     options.scanlineSync = scanlineSync && busType == DisplayBus::SPI && tePin < 0;
+    options.swapBytes = swapBytes;
     if (!panel->display->Start(options))
     {
         finish(false);

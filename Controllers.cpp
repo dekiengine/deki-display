@@ -318,6 +318,7 @@ constexpr ControllerCommands kSSD1351Commands = {
     .displayOff = 0xAE,
     .displayOn = 0xAF,
     .nop = 0xE3,
+    .softwareReset = 0,
     .windowBytes = 1,
     .windowTurns = true,
 };

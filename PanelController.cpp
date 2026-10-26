@@ -69,6 +69,21 @@ bool PanelController::Init(const PanelConfig& config, const InitSequence* init)
         return false;
     }
     bool ok = true;
+    // No reset line: a software reset puts the controller's registers back to
+    // their defaults, as the line would. Without it they keep what the
+    // firmware before this one set, since restarting the chip does not reset
+    // the panel: a byte order or gamma that was never in this start-up.
+    // A MIPI DCS controller takes commands 5 ms after it, and leaves sleep
+    // only 120 ms after it. Not sent twice: some start-ups begin with one.
+    const uint8_t softwareReset = m_Info->commands.softwareReset;
+    if (m_Config.resetPin < 0 && softwareReset != 0 && (steps.empty() || steps.front().cmd != softwareReset))
+    {
+        ok = m_IO.Command(softwareReset, nullptr, 0);
+        if (m_Delay)
+        {
+            m_Delay(120);
+        }
+    }
     for (const InitStep& step : steps)
     {
         ok = m_IO.Command(step.cmd, step.params.data(), step.params.size()) && ok;

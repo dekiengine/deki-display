@@ -8,6 +8,25 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
+## Unreleased
+
+### Added
+- **Swap Bytes** on `DisplayPanelComponent` (`PanelDisplay::Options::swapBytes`):
+  each pixel's two bytes go out the other way round, for a panel that reads
+  them so. The symptom is dark colours turning pink and white turning green.
+  Frames are then swapped in a copy, which costs a little time per frame; off,
+  nothing changes.
+
+### Fixed
+- A panel with no reset line starts from its own defaults. Restarting the
+  chip does not reset the panel, so it kept whatever the firmware before had
+  set, such as a byte order or gamma no part of this start-up sets: a T-Deck
+  that had run firmware leaving its panel little-endian showed dark colours
+  pink. Without a reset pin the controller now gets a software reset (0x01)
+  first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up
+  begins with one, and not on the SSD1351, which has none. Boot takes 120 ms
+  longer on such boards.
+
 ## 0.20.0
 
 ### Changed

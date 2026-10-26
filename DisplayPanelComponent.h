@@ -89,6 +89,11 @@ public:
     DEKI_TOOLTIP("The panel takes red first. Off sets the controller's BGR order")
     bool rgbOrder = false;
 
+    DEKI_EXPORT
+    DEKI_TOOLTIP("Sends each pixel's two bytes the other way round. Turn it on when dark colours come out pink and "
+                 "white comes out green. Costs a copy of every frame")
+    bool swapBytes = false;
+
     // ========== Bus ==========
 
     DEKI_GROUP("Bus")

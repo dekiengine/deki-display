@@ -64,6 +64,10 @@ public:
         /// With no TE line: the same, from the panel's scanline, which the
         /// panel IO reads back (ScanlineClock).
         bool scanlineSync = false;
+        /// Each pixel's two bytes go out in the other order from the one the
+        /// bus sends (IPanelIO::PixelsBigEndian), for a panel set up to read
+        /// them that way round. Frames are then swapped in a copy.
+        bool swapBytes = false;
     };
 
     PanelDisplay(PanelController& controller, IPanelIO& io);

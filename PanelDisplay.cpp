@@ -115,7 +115,7 @@ bool PanelDisplay::Start(const Options& options)
         DEKI_LOG_ERROR("PanelDisplay: the panel has no size (%dx%d)", (int)m_Width, (int)m_Height);
         return false;
     }
-    m_WireBigEndian = m_IO.PixelsBigEndian();
+    m_WireBigEndian = m_IO.PixelsBigEndian() != options.swapBytes;
     m_SwapRGB565 = m_WireBigEndian != Deki::kRGB565BigEndian;
     m_PanelWidth = m_Width;
     m_PanelHeight = m_Height;
