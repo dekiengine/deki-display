@@ -17,6 +17,13 @@ alongside one that has them.
   Frames are then swapped in a copy, which costs a little time per frame; off,
   nothing changes.
 
+### Changed
+- A frame where several things moved is sent from the other core too, as a
+  whole frame or one changed rectangle already was: the changed rows go into
+  a frame copy and the drawing core draws on. They were sent as drawn, which
+  kept the drawing core busy for as long as the wire took. On a T-Deck Plus
+  the demo's effects scene presents in 3.5 ms instead of 4.3 ms.
+
 ### Fixed
 - A panel with no reset line starts from its own defaults. Restarting the
   chip does not reset the panel, so it kept whatever the firmware before had

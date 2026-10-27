@@ -190,7 +190,8 @@ private:
     // first. wire: the strip is in the wire's byte order already. raw: the
     // copy holds screen pixels as drawn, the pixel at screen (srcLeft,
     // srcTop) first and srcStride to a row, which the worker turns into the
-    // panel's rows as it sends them.
+    // panel's rows as it sends them. bands: the rows of m_CopyBands[index]
+    // of the frame in m_Staging[index], not [top, bottom).
     struct Job
     {
         int index;
@@ -204,6 +205,7 @@ private:
         int srcLeft = 0;
         int srcTop = 0;
         int srcStride = 0;
+        bool bands = false;
     };
     static void WorkerMain(void* self);
     void RunWorker();
@@ -264,8 +266,8 @@ private:
     // `rows` (RGB565, `pitch` pixels a row, `width` wide, row y0 first), whose
     // pixels are byte-swapped from the CPU's order when `swapped` is set.
     void BlendOverlayRows(uint16_t* rows, size_t pitch, int width, int y0, int y1, bool swapped) const;
-    // Asks the engine for a full frame after the overlay changes: the frame's
-    // own dirty rectangles know nothing of it.
+    // Asks the engine for a full frame after the overlay changes: the parts of
+    // the frame that changed know nothing of it.
     void OverlayChanged();
     void Clear();
     bool HasOverlay() const { return m_ActiveOverlay && m_ActiveOverlay->buffer; }
@@ -331,6 +333,9 @@ private:
     int32_t m_BandRows = 0;
     int m_BandIndex = 0;
     std::vector<Deki::Rect> m_BandScratch;
+    // Puts the rectangles' rows into m_BandScratch as row bands: widened to
+    // the panel's row alignment, kept to the frame's rows, sorted and merged.
+    void MergeRowBands(const Deki::Rect* rects, int32_t count, int width, int height);
 
     uint16_t* m_RenderBuffers[2] = { nullptr, nullptr };
     int m_RenderIndex = 0;
@@ -363,6 +368,10 @@ private:
     bool m_WorkerRunning = false;
     uint8_t* m_Staging[2] = { nullptr, nullptr };
     size_t m_StagingBytes = 0;
+    // The row bands a frame copy holds for its job, when that is several.
+    // The worker reads them until the copy is given back, and only the
+    // drawing core writes them, after taking the copy.
+    std::vector<Deki::Rect> m_CopyBands[2];
     uint16_t* m_Strip[2] = { nullptr, nullptr };
     int m_StripRows = 0;
     // The fewest rows the strip copies could not be grown to: strips that

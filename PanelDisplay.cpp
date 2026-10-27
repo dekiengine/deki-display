@@ -303,8 +303,7 @@ void PanelDisplay::BeforeOverlayChange()
 
 void PanelDisplay::OverlayChanged()
 {
-    // A frame with dirty-rect tracking sends only the rows it drew in, and one
-    // drawn in strips sends nothing of a strip where nothing moved: the rows
+    // A frame that redraws only what changed sends only those parts: the rows
     // the overlay covers, or covered, would keep what the panel shows now.
     if (m_Initialized)
     {
@@ -594,15 +593,64 @@ void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int
     {
         return;
     }
+
+    // A window here spans whole rows, since the framebuffer's rows are only
+    // contiguous at full width, so rectangles become row bands.
+    MergeRowBands(rects, count, width, height);
+    if (m_BandScratch.empty())
+    {
+        return;
+    }
+
+    // Several rectangles (a frame where several things moved) go to the
+    // worker too: their rows into the same rows of a frame copy, in the
+    // wire's order, as one rectangle's do. Sending them here instead kept the
+    // drawing core busy for as long as the wire took.
+    if (count > 1 && CanPresentAsync(framebuffer, width, height, format))
+    {
+        const int index = TakeCopy();
+        m_CopyBands[index] = m_BandScratch;
+        const size_t pitch = static_cast<size_t>(width) * sizeof(uint16_t);
+        for (const Deki::Rect& band : m_BandScratch)
+        {
+            auto* copy = reinterpret_cast<uint16_t*>(m_Staging[index] + static_cast<size_t>(band.top) * pitch);
+            CopyToWire(copy, reinterpret_cast<const uint16_t*>(framebuffer + static_cast<size_t>(band.top) * pitch),
+                       static_cast<size_t>(band.bottom - band.top) * width);
+            BlendOverlayRows(copy, width, width, band.top, band.bottom, m_WireBigEndian);
+        }
+        Job job{ index, m_BandScratch.front().top, m_BandScratch.back().bottom, false, false, frameStart };
+        job.bands = true;
+        Post(job);
+        return;
+    }
+
     WaitForPresents();
     if (frameStart)
     {
         WaitForRefresh();
     }
+    const bool direct =
+        format == Deki::ColorFormat::RGB565 && !m_SwapRGB565 && !HasOverlay() && width == m_Width && height == m_Height;
+    for (const Deki::Rect& band : m_BandScratch)
+    {
+        if (direct)
+        {
+            PushRowsDirect(reinterpret_cast<const uint16_t*>(framebuffer), band.top, band.bottom);
+        }
+        else
+        {
+            PushRows(framebuffer, width, height, format, band.top, band.bottom, true);
+        }
+    }
+    NotePartSent();
+    if (m_RenderBuffers[1])
+    {
+        m_RenderIndex = 1 - m_RenderIndex;
+    }
+}
 
-    // A window here spans whole rows, since the framebuffer's rows are only
-    // contiguous at full width, so rectangles become row bands: widened to
-    // the panel's row alignment, sorted and merged.
+void PanelDisplay::MergeRowBands(const Deki::Rect* rects, int32_t count, int width, int height)
+{
     const int32_t align = std::max<int32_t>(1, m_Controller.GetRowAlign());
     m_BandScratch.clear();
     for (int32_t i = 0; i < count; ++i)
@@ -612,9 +660,12 @@ void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int
         {
             continue;
         }
-        const int32_t top = r.top - (r.top % align);
-        const int32_t bottom = ((r.bottom + align - 1) / align) * align;
-        m_BandScratch.push_back(Deki::Rect{ 0, top, width, bottom });
+        const int32_t top = std::max<int32_t>(r.top - (r.top % align), 0);
+        const int32_t bottom = std::min<int32_t>(((r.bottom + align - 1) / align) * align, height);
+        if (bottom > top)
+        {
+            m_BandScratch.push_back(Deki::Rect{ 0, top, width, bottom });
+        }
     }
     std::sort(m_BandScratch.begin(), m_BandScratch.end(),
               [](const Deki::Rect& a, const Deki::Rect& b) { return a.top < b.top; });
@@ -632,26 +683,6 @@ void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int
         }
     }
     m_BandScratch.resize(out);
-
-    const bool direct =
-        format == Deki::ColorFormat::RGB565 && !m_SwapRGB565 && !HasOverlay() && width == m_Width && height == m_Height;
-    for (const Deki::Rect& band : m_BandScratch)
-    {
-        if (direct)
-        {
-            PushRowsDirect(reinterpret_cast<const uint16_t*>(framebuffer), std::max<int>(band.top, 0),
-                           std::min<int>(band.bottom, height));
-        }
-        else
-        {
-            PushRows(framebuffer, width, height, format, band.top, band.bottom, true);
-        }
-    }
-    NotePartSent();
-    if (m_RenderBuffers[1])
-    {
-        m_RenderIndex = 1 - m_RenderIndex;
-    }
 }
 
 void PanelDisplay::GetDisplaySize(int32_t* width, int32_t* height) const
@@ -978,6 +1009,13 @@ void PanelDisplay::RunWorker()
         else if (job.strip)
         {
             SendStripBody(m_Strip[job.index], job.top, job.bottom - job.top, !job.wire);
+        }
+        else if (job.bands)
+        {
+            for (const Deki::Rect& band : m_CopyBands[job.index])
+            {
+                PushRowsDirectBody(reinterpret_cast<const uint16_t*>(m_Staging[job.index]), band.top, band.bottom);
+            }
         }
         else
         {

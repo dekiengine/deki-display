@@ -1123,7 +1123,7 @@ TEST_F(DisplayTest, AnAsyncStripIsOneWindowSwappedInItsCopy)
     PanelDisplay::SetWorkerBackend(nullptr);
 }
 
-TEST_F(DisplayTest, OtherPresentsWaitForTheWorker)
+TEST_F(DisplayTest, SeveralRectanglesGoToTheWorkerAfterTheFrameBeforeThem)
 {
     RecordingIO io;
     PanelController panel(io, &RecordDelay);
@@ -1134,11 +1134,12 @@ TEST_F(DisplayTest, OtherPresentsWaitForTheWorker)
     ASSERT_TRUE(display.SetAsyncPresent(true));
     g_Events.clear();
 
-    const std::vector<uint8_t> frame = Frame565({ 1, 2, 3, 4, 5, 6, 7, 8 });
+    std::vector<uint8_t> frame = Frame565({ 1, 2, 3, 4, 5, 6, 7, 8 });
     display.Present(frame.data(), 2, 4, Deki::ColorFormat::RGB565);
-    // Two rectangles: sent as drawn, after the frame the worker has.
     const Deki::Rect rects[] = { { 0, 0, 2, 1 }, { 0, 3, 2, 4 } };
     display.PresentRegions(frame.data(), 2, 4, Deki::ColorFormat::RGB565, rects, 2);
+    std::fill(frame.begin(), frame.end(), 0);  // the engine draws the next frame at once
+    display.WaitForPresents();
     const std::vector<uint8_t> wire = Wire();
     ASSERT_EQ(wire.size(), (8u + 4u) * 2);
     EXPECT_EQ(wire[1], 1);  // the whole frame first
@@ -1146,6 +1147,53 @@ TEST_F(DisplayTest, OtherPresentsWaitForTheWorker)
     EXPECT_EQ(wire[17], 1);  // then row 0
     EXPECT_EQ(wire[21], 7);  // and row 3
     PanelDisplay::SetWorkerBackend(nullptr);
+}
+
+// The worker sends several rectangles as the drawing core would: the same
+// windows and the same bytes, whichever byte order the wire takes.
+TEST_F(DisplayTest, SeveralRectanglesSendTheSameFromTheWorker)
+{
+    std::vector<uint16_t> pixels(3 * 40);
+    for (size_t i = 0; i < pixels.size(); ++i)
+    {
+        pixels[i] = static_cast<uint16_t>(i * 977u + 13u);
+    }
+    const std::vector<uint8_t> frame = Frame565(pixels);
+    // Overlapping, touching, out of order, empty and off the frame's rows.
+    const Deki::Rect rects[] = { { 0, 30, 3, 31 }, { 0, 1, 3, 3 },   { 1, 10, 2, 12 }, { 0, 11, 3, 20 },
+                                 { 0, 5, 0, 9 },   { 0, 20, 3, 22 }, { 0, 38, 3, 45 }, { 0, -3, 3, 1 } };
+    for (bool swapped : { false, true })
+    {
+        std::vector<std::string> commands[2];
+        std::vector<uint8_t> wire[2];
+        for (int async = 0; async < 2; ++async)
+        {
+            RecordingIO io;
+            io.bigEndian = swapped != Deki::kRGB565BigEndian;
+            PanelController panel(io, &RecordDelay);
+            ASSERT_TRUE(panel.Init(SmallPanel(3, 40), nullptr));
+            PanelDisplay display(panel, io);
+            ASSERT_TRUE(display.Start(PanelDisplay::Options{}));
+            if (async)
+            {
+                PanelDisplay::SetWorkerBackend(&kThreadWorker);
+                ASSERT_TRUE(display.SetAsyncPresent(true));
+            }
+            g_Events.clear();
+            display.PresentRegions(frame.data(), 3, 40, Deki::ColorFormat::RGB565, rects, 8);
+            display.WaitForPresents();
+            commands[async] = Commands();
+            wire[async] = Wire();
+            if (async)
+            {
+                ASSERT_TRUE(display.SetAsyncPresent(false));
+                PanelDisplay::SetWorkerBackend(nullptr);
+            }
+        }
+        EXPECT_EQ(commands[1], commands[0]) << "swapped " << swapped;
+        EXPECT_EQ(wire[1], wire[0]) << "swapped " << swapped;
+        EXPECT_EQ(wire[0].size(), 3u * (3 + 11 + 1 + 3) * 2) << "rows 0-2, 10-20, 30, 38-39";
+    }
 }
 
 // --- DisplayPanelComponent ---
