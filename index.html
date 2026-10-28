@@ -56,7 +56,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.20.2</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.21.0</span>
    </div>
    <div id="projectbrief">Deki package reference</div>
   </td>
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki's own display library: panel controllers on SPI, quad SPI or 8- and 16-bit parallel buses, touch controllers, and frames that never tear</p>
-<p>Repository: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · Latest release: 0.20.0 · Needs engine 0.20.0+ · Requires: <a href="https://dekiengine.github.io/deki-spi/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/">deki-rendering</a></p>
+<p>Repository: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · Latest release: 0.21.0 · Needs engine 0.21.0+ · Requires: <a href="https://dekiengine.github.io/deki-spi/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/">deki-rendering</a></p>
 <p>Install with <span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span>, or from the Package Manager. The engine's own components and C++ API are in the <a href="https://dekiengine.github.io/docs/">Deki docs</a>.</p>
 <p>Shown in the editor as <b>Display</b>.</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -163,77 +163,79 @@ DisplayPanelComponent</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rgbOrder</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">The panel takes red first. Off sets the controller's BGR order  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">swapBytes</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Sends each pixel's two bytes the other way round. Turn it on when dark colours come out pink and white comes out green. Costs a copy of every frame  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">busType</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"SPI"</span>  </td><td class="markdownTableBodyNone"><span class="tt">SPI</span>, <span class="tt">QSPI</span>, <span class="tt">Parallel8</span>, <span class="tt">Parallel16</span>  </td><td class="markdownTableBodyNone">How the panel is wired: SPI with a data/command pin (most LCDs), quad SPI (AMOLED panels such as the RM67162), which needs an SPI Bus with IO2 and IO3, or an 8- or 16-bit parallel bus (8080), which this component starts itself  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiHost</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">0 to 3; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">The SPI host the panel is on, as the SPI Bus component that starts it numbers it (on an ESP32-S3: 1 = SPI2, 2 = SPI3)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">spiWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">40000000</span>  </td><td class="markdownTableBodyNone">shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">SPI clock for the panel. 80 MHz is the ESP32-S3's fastest, and most ST7789 modules take it  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">parallelWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">20000000</span>  </td><td class="markdownTableBodyNone">shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Write strobe frequency on the parallel bus. Most panels take 20 MHz; some, with short wires, more  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">dcPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data/command pin (DC, also called RS)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">wrPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Write strobe pin (WR)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rdPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Read strobe pin (RD), held high: the panel is only written (-1 = tied high on the board)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d0Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D0  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d1Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D1  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d2Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D2  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d3Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D3  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d4Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D4  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d5Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D5  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d6Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D6  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d7Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D7  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d8Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D8  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d9Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D9  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d10Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D10  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d11Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D11  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d12Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D12  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d13Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D13  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d14Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D14  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d15Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48; shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">Data line D15  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">csPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48  </td><td class="markdownTableBodyNone">Chip select pin (-1 = tied low)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rstPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48  </td><td class="markdownTableBodyNone">Reset pin (-1 = not connected)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">tePin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48  </td><td class="markdownTableBodyNone">The panel's tearing-effect (TE) output (-1 = not connected). With it, frames never tear: each starts as the panel starts a refresh, and goes in the panel's own row order, a turned screen turned as it is sent and drawn in strips of columns  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone">shown when <span class="tt">busType</span> allows  </td><td class="markdownTableBodyNone">With no TE line wired, read the panel's scanline instead, so frames still never tear. A panel that cannot be read back is sent as frames are drawn, and the boot log says so  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiReadHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">10000000</span>  </td><td class="markdownTableBodyNone">shown when <span class="tt">scanlineSync</span> allows  </td><td class="markdownTableBodyNone">SPI clock for reading the panel back, slower than writing it (the ST7789 reads reliably at 10 MHz)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">readsOnMosi</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone">shown when <span class="tt">scanlineSync</span> allows  </td><td class="markdownTableBodyNone">The panel answers on its data-in line (SDA both ways, as the LilyGO T-Deck's does), not on MISO  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">blPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 to 48  </td><td class="markdownTableBodyNone">Backlight pin (-1 = none). Held high for on: a backlight driver dimmed by counting pulses (the LilyGO T-Deck's) wants exactly that  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">blInvert</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">The backlight is on when its pin is low  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">memoryWidth</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 to 1024  </td><td class="markdownTableBodyNone">The controller's memory width, which may be more than the visible width (0 = the controller's)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">memoryHeight</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 to 1024  </td><td class="markdownTableBodyNone">The controller's memory height (0 = the controller's)  </td></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Keep the framebuffer in PSRAM instead of internal RAM: frees a screen's worth of internal RAM, drawing is slower  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Two framebuffers, swapped after each frame  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Keep the framebuffer in PSRAM instead of internal RAM: frees a screen's worth of internal RAM, drawing is slower  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Two framebuffers, swapped after each frame  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so. The sender runs on the core the game does not, at priority 5: about 1% of that core when little moves, and up to 20 to 40% when most of the screen changes (measured on ESP32-S3 boards). A task of your own on that core above priority 5 runs first. Off, the whole core is the game's, and each frame costs drawing and sending.  </td></tr>
 </table>
 <h2 class="doxsection"><a class="anchor" id="c-touchpanelcomponent"></a>
 TouchPanelComponent</h2>
@@ -272,13 +274,32 @@ TouchPanelComponent</h2>
 <h1 class="doxsection"><a class="anchor" id="changelog"></a>
 Changelog</h1>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.20.0</h2>
+0.21.0</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Added</h2>
+<ul>
+<li><b>Swap Bytes</b> on <span class="tt">DisplayPanelComponent</span> (<span class="tt">PanelDisplay::Options::swapBytes</span>): each pixel's two bytes go out the other way round, for a panel that reads them so. The symptom is dark colours turning pink and white turning green. Frames are then swapped in a copy, which costs a little time per frame; off, nothing changes.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+Changed</h2>
+<ul>
+<li><span class="tt">minEngine</span> 0.21.0: built against engine 0.21.0. A build of this package from before does not load and is rebuilt.</li>
+<li>A frame where several things moved is sent from the other core too, as a whole frame or one changed rectangle already was: the changed rows go into a frame copy and the drawing core draws on. They were sent as drawn, which kept the drawing core busy for as long as the wire took. On a T-Deck Plus the demo's effects scene presents in 3.5 ms instead of 4.3 ms.</li>
+<li>A panel that shows each frame on its refresh (a TE pin or its scanline) tells the engine how long a refresh takes, and the engine times frames to it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60 frames a second showed one frame twice every five seconds, a small stutter in anything scrolling; it no longer does. The frame readout's present time now includes the wait for the panel.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
+Fixed</h2>
+<ul>
+<li>A panel with no reset line starts from its own defaults. Restarting the chip does not reset the panel, so it kept whatever the firmware before had set, such as a byte order or gamma no part of this start-up sets: a T-Deck that had run firmware leaving its panel little-endian showed dark colours pink. Without a reset pin the controller now gets a software reset (0x01) first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up begins with one, and not on the SSD1351, which has none. Boot takes 120 ms longer on such boards.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
+0.20.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.20.0: built against engine 0.20.0. A build of this package from before does not load and is rebuilt.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md6"></a>
 Added</h2>
 <ul>
 <li>The package: <span class="tt">DisplayPanelComponent</span>, which starts a panel on a deki-spi bus from the boot scene and gives the engine <span class="tt">PanelDisplay</span>, a <span class="tt">Deki::IDisplay</span> presenting whole frames and changed rectangles with the UI overlay blended over them; <span class="tt">PanelController</span>, a MIPI DCS controller driven by a table per controller (ST7789 first, its start-up and MADCTL ported from LovyanGFX); <span class="tt">SpiPanelIO</span>, 4-wire SPI with pixels queued for DMA; and <span class="tt">initSequence</span>, a board's own start-up for its panel module, as text.</li>
@@ -300,7 +321,7 @@ Added</h2>
 </ul>
 <p>Earlier releases: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a>.</p>
 <hr  />
-<p>Generated from the package's reflection data (engine 0.20.2). Property names are the keys used in scene files. Renames keep an alias (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">compatibility</a>). </p>
+<p>Generated from the package's reflection data (engine 0.21.0). Property names are the keys used in scene files. Renames keep an alias (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">compatibility</a>). </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->

@@ -57,7 +57,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.20.2</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.21.0</span>
    </div>
    <div id="projectbrief">Deki パッケージリファレンス</div>
   </td>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki 独自のディスプレイライブラリ。趣味のボードでよく使われる画面を動かし、タッチを読み、どのフレームも丸ごと送ります。</p>
-<p>リポジトリ: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新リリース: 0.20.0 · エンジン 0.20.0 以降が必要 · 依存: <a href="https://dekiengine.github.io/deki-spi/ja/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ja/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ja/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ja/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ja/">deki-rendering</a></p>
+<p>リポジトリ: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新リリース: 0.21.0 · エンジン 0.21.0 以降が必要 · 依存: <a href="https://dekiengine.github.io/deki-spi/ja/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ja/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ja/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ja/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ja/">deki-rendering</a></p>
 <p><span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> か、パッケージマネージャーからインストールします。エンジン自身のコンポーネントと C++ API は <a href="https://dekiengine.github.io/docs/ja/">Deki のドキュメント</a>にあります。</p>
 <p>エディターでは <b>Display</b> と表示されます。</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -164,77 +164,79 @@ DisplayPanelComponent</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rgbOrder</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">パネルが赤を先に受け取ります。オフにするとコントローラーの BGR 順を設定します  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">swapBytes</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">各ピクセルの 2 バイトを逆の順序で送ります。暗い色がピンクに、白が緑になるときにオンにします。毎フレームのコピーが必要になります  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">busType</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"SPI"</span>  </td><td class="markdownTableBodyNone"><span class="tt">SPI</span>, <span class="tt">QSPI</span>, <span class="tt">Parallel8</span>, <span class="tt">Parallel16</span>  </td><td class="markdownTableBodyNone">パネルの配線方法です。データ/コマンドピンのある SPI (ほとんどの LCD)、クアッド SPI (RM67162 などの AMOLED パネル。IO2 と IO3 のある SPI Bus が必要です)、または 8 ビット・16 ビットのパラレルバス (8080。このコンポーネントが自分で開始します)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiHost</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">0 から 3。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">パネルが接続されている SPI ホストです。それを開始する SPI Bus コンポーネントと同じ番号で指定します (ESP32-S3 では 1 = SPI2、2 = SPI3)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">spiWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">40000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">パネルの SPI クロックです。80 MHz は ESP32-S3 の最速で、ほとんどの ST7789 モジュールが対応します  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">parallelWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">20000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">パラレルバスのライトストローブの周波数です。ほとんどのパネルは 20 MHz に対応し、配線の短いものはそれ以上でも動きます  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">dcPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ/コマンドピン (DC、RS とも呼びます)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">wrPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">ライトストローブのピン (WR)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rdPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">リードストローブのピン (RD)。High に保ち、パネルには書き込みだけを行います (-1 = ボード上で High に固定)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d0Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D0  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d1Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D1  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d2Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D2  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d3Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D3  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d4Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D4  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d5Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D5  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d6Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D6  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d7Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D7  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d8Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D8  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d9Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D9  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d10Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D10  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d11Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D11  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d12Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D12  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d13Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D13  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d14Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D14  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d15Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48。<span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">データ線 D15  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">csPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48  </td><td class="markdownTableBodyNone">チップセレクトのピン (-1 = Low に固定)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rstPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48  </td><td class="markdownTableBodyNone">リセットピン (-1 = 未接続)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">tePin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48  </td><td class="markdownTableBodyNone">パネルのティアリングエフェクト (TE) 出力です (-1 = 未接続)。接続すると、フレームがティアリングしなくなります。各フレームはパネルがリフレッシュを始めた時点で送り始め、パネル自身の行の順に送ります。回転した画面は送るときに回転し、列のストリップで描画します  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> が許すときに表示  </td><td class="markdownTableBodyNone">TE 線が配線されていない場合、代わりにパネルの走査線を読み取り、フレームがティアリングしないようにします。読み戻せないパネルには描いた順に送り、起動ログにそう出ます  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiReadHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">10000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span> が許すときに表示  </td><td class="markdownTableBodyNone">パネルを読み戻すときの SPI クロックで、書き込みより遅くします (ST7789 は 10 MHz で確実に読み取れます)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">readsOnMosi</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span> が許すときに表示  </td><td class="markdownTableBodyNone">パネルが MISO ではなくデータ入力線で応答します (LilyGO T-Deck のように SDA が双方向)  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">blPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 から 48  </td><td class="markdownTableBodyNone">バックライトのピン (-1 = なし)。点灯中は High に保ちます。パルス数で減光するバックライトドライバー (LilyGO T-Deck のもの) には、まさにこれが必要です  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">blInvert</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">ピンが Low のときにバックライトが点灯します  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">memoryWidth</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 から 1024  </td><td class="markdownTableBodyNone">コントローラーのメモリ上の幅で、表示される幅より大きい場合があります (0 = コントローラーの値)  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">memoryHeight</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 から 1024  </td><td class="markdownTableBodyNone">コントローラーのメモリ上の高さ (0 = コントローラーの値)  </td></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">フレームバッファーを内部 RAM ではなく PSRAM に置きます。画面 1 枚分の内部 RAM が空きますが、描画は遅くなります  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">フレームバッファーを 2 つ使い、フレームごとに切り替えます  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">フレームバッファーを内部 RAM ではなく PSRAM に置きます。画面 1 枚分の内部 RAM が空きますが、描画は遅くなります  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">次のフレームを描いている間に、チップのもう一方のコアから各フレームを送ります。1 フレームにかかる時間は、描画と送信の合計ではなく長いほうになります。デュアルコアのチップと外部メモリ (PSRAM) 2 フレーム分が必要で、ない場合は描いた順に送り、起動ログにそう出ます  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">フレームバッファーを 2 つ使い、フレームごとに切り替えます  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">次のフレームを描いている間に、チップのもう一方のコアから各フレームを送ります。1 フレームにかかる時間は、描画と送信の合計ではなく長いほうになります。デュアルコアのチップと外部メモリ (PSRAM) 2 フレーム分が必要で、ない場合は描いた順に送り、起動ログにそう出ます。送信はゲームが使わないほうのコアで優先度 5 で動きます。そのコアの使用量は、ほとんど動かないときは約 1、画面の大部分が変わるときは最大 20〜40% です (ESP32-S3 のボードで計測)。そのコアで優先度 5 より高い自分のタスクは先に動きます。オフにするとそのコアはすべてゲームのものになり、各フレームに描画と送信の両方の時間がかかります。  </td></tr>
 </table>
 <h2 class="doxsection"><a class="anchor" id="c-touchpanelcomponent"></a>
 TouchPanelComponent</h2>
@@ -274,13 +276,32 @@ TouchPanelComponent</h2>
 変更履歴</h1>
 <p>変更履歴は英語です。</p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.20.0</h2>
+0.21.0</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Added</h2>
+<ul>
+<li><b>Swap Bytes</b> on <span class="tt">DisplayPanelComponent</span> (<span class="tt">PanelDisplay::Options::swapBytes</span>): each pixel's two bytes go out the other way round, for a panel that reads them so. The symptom is dark colours turning pink and white turning green. Frames are then swapped in a copy, which costs a little time per frame; off, nothing changes.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+Changed</h2>
+<ul>
+<li><span class="tt">minEngine</span> 0.21.0: built against engine 0.21.0. A build of this package from before does not load and is rebuilt.</li>
+<li>A frame where several things moved is sent from the other core too, as a whole frame or one changed rectangle already was: the changed rows go into a frame copy and the drawing core draws on. They were sent as drawn, which kept the drawing core busy for as long as the wire took. On a T-Deck Plus the demo's effects scene presents in 3.5 ms instead of 4.3 ms.</li>
+<li>A panel that shows each frame on its refresh (a TE pin or its scanline) tells the engine how long a refresh takes, and the engine times frames to it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60 frames a second showed one frame twice every five seconds, a small stutter in anything scrolling; it no longer does. The frame readout's present time now includes the wait for the panel.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
+Fixed</h2>
+<ul>
+<li>A panel with no reset line starts from its own defaults. Restarting the chip does not reset the panel, so it kept whatever the firmware before had set, such as a byte order or gamma no part of this start-up sets: a T-Deck that had run firmware leaving its panel little-endian showed dark colours pink. Without a reset pin the controller now gets a software reset (0x01) first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up begins with one, and not on the SSD1351, which has none. Boot takes 120 ms longer on such boards.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
+0.20.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.20.0: built against engine 0.20.0. A build of this package from before does not load and is rebuilt.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md6"></a>
 Added</h2>
 <ul>
 <li>The package: <span class="tt">DisplayPanelComponent</span>, which starts a panel on a deki-spi bus from the boot scene and gives the engine <span class="tt">PanelDisplay</span>, a <span class="tt">Deki::IDisplay</span> presenting whole frames and changed rectangles with the UI overlay blended over them; <span class="tt">PanelController</span>, a MIPI DCS controller driven by a table per controller (ST7789 first, its start-up and MADCTL ported from LovyanGFX); <span class="tt">SpiPanelIO</span>, 4-wire SPI with pixels queued for DMA; and <span class="tt">initSequence</span>, a board's own start-up for its panel module, as text.</li>
@@ -302,7 +323,7 @@ Added</h2>
 </ul>
 <p>それ以前のリリース: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
 <hr  />
-<p>パッケージのリフレクションデータから生成しています (エンジン 0.20.2)。プロパティ名はシーンファイルで使われるキーです。名前を変えても別名が残ります (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">互換性</a>)。 </p>
+<p>パッケージのリフレクションデータから生成しています (エンジン 0.21.0)。プロパティ名はシーンファイルで使われるキーです。名前を変えても別名が残ります (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">互換性</a>)。 </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->

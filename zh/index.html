@@ -57,7 +57,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.20.2</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.21.0</span>
    </div>
    <div id="projectbrief">Deki 包参考</div>
   </td>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki 自己的显示库。驱动大多数爱好者开发板使用的屏幕，读取它们的触摸，并完整地发送每一帧。</p>
-<p>仓库：<a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新版本：0.20.0 · 需要引擎 0.20.0 或更高版本 · 依赖：<a href="https://dekiengine.github.io/deki-spi/zh/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/zh/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/zh/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/zh/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/zh/">deki-rendering</a></p>
+<p>仓库：<a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新版本：0.21.0 · 需要引擎 0.21.0 或更高版本 · 依赖：<a href="https://dekiengine.github.io/deki-spi/zh/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/zh/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/zh/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/zh/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/zh/">deki-rendering</a></p>
 <p>使用 <span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> 或通过包管理器安装。引擎自身的组件和 C++ API 见 <a href="https://dekiengine.github.io/docs/zh/">Deki 文档</a>。</p>
 <p>在编辑器中显示为 **Display**。</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -164,77 +164,79 @@ DisplayPanelComponent</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rgbOrder</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">面板先接收红色。关闭时设置控制器的 BGR 顺序  </td></tr>
 <tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">swapBytes</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">以相反的顺序发送每个像素的两个字节。深色显示为粉色、白色显示为绿色时打开。每一帧都要复制一次  </td></tr>
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">busType</span>  </td><td class="markdownTableBodyNone">enum  </td><td class="markdownTableBodyNone"><span class="tt">"SPI"</span>  </td><td class="markdownTableBodyNone"><span class="tt">SPI</span>, <span class="tt">QSPI</span>, <span class="tt">Parallel8</span>, <span class="tt">Parallel16</span>  </td><td class="markdownTableBodyNone">面板的接线方式：带数据/命令引脚的 SPI（大多数 LCD）、四线 SPI（RM67162 等 AMOLED 面板，需要带 IO2 和 IO3 的 SPI Bus），或 8 位、16 位并行总线（8080，由本组件自行启动）  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiHost</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">1</span>  </td><td class="markdownTableBodyNone">0 到 3；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">面板所在的 SPI 主机，与启动它的 SPI Bus 组件编号一致（在 ESP32-S3 上：1 = SPI2，2 = SPI3）  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">spiWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">40000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">面板的 SPI 时钟。80 MHz 是 ESP32-S3 的最快速度，大多数 ST7789 模块都支持  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">parallelWriteHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">20000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">并行总线上写选通的频率。大多数面板支持 20 MHz；连线短的可以更高  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">dcPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据/命令引脚（DC，也叫 RS）  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">wrPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">写选通引脚（WR）  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rdPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">读选通引脚（RD），保持高电平：只向面板写入（-1 = 在板上固定接高电平）  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d0Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D0  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d1Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D1  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d2Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D2  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d3Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D3  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d4Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D4  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d5Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D5  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d6Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D6  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d7Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D7  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d8Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D8  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d9Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D9  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d10Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D10  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d11Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D11  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d12Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D12  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d13Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D13  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">d14Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D14  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">d15Pin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48；<span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">数据线 D15  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">csPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48  </td><td class="markdownTableBodyNone">片选引脚（-1 = 固定接低电平）  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">rstPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48  </td><td class="markdownTableBodyNone">复位引脚（-1 = 未连接）  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">tePin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48  </td><td class="markdownTableBodyNone">面板的撕裂效应（TE）输出（-1 = 未连接）。接上后画面不会撕裂：每一帧在面板开始刷新时开始发送，并按面板自身的行顺序发送；旋转的屏幕在发送时旋转，并按列条带绘制  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">scanlineSync</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"><span class="tt">busType</span> 允许时显示  </td><td class="markdownTableBodyNone">没有接 TE 线时，改为读取面板的扫描线，让画面依然不会撕裂。无法回读的面板按绘制顺序发送，启动日志会说明  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">spiReadHz</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">10000000</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span> 允许时显示  </td><td class="markdownTableBodyNone">回读面板时的 SPI 时钟，比写入慢（ST7789 在 10 MHz 下读取可靠）  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">readsOnMosi</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"><span class="tt">scanlineSync</span> 允许时显示  </td><td class="markdownTableBodyNone">面板在数据输入线上应答（SDA 双向，如 LilyGO T-Deck），而不是在 MISO 上  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">blPin</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">-1</span>  </td><td class="markdownTableBodyNone">-1 到 48  </td><td class="markdownTableBodyNone">背光引脚（-1 = 无）。点亮时保持高电平：通过计数脉冲调光的背光驱动器（LilyGO T-Deck 的）正需要这样  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">blInvert</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">引脚为低电平时背光点亮  </td></tr>
-<tr class="markdownTableRowOdd">
+<tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><span class="tt">memoryWidth</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 到 1024  </td><td class="markdownTableBodyNone">控制器的显存宽度，可能大于可见宽度（0 = 控制器的值）  </td></tr>
-<tr class="markdownTableRowEven">
+<tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><span class="tt">memoryHeight</span>  </td><td class="markdownTableBodyNone">int32  </td><td class="markdownTableBodyNone"><span class="tt">0</span>  </td><td class="markdownTableBodyNone">0 到 1024  </td><td class="markdownTableBodyNone">控制器的显存高度（0 = 控制器的值）  </td></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">将帧缓冲放在 PSRAM 而不是内部 RAM 中：可腾出一屏大小的内部 RAM，但绘制会变慢  </td></tr>
 <tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">两个帧缓冲区，每帧后交换  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">usePsram</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">将帧缓冲放在 PSRAM 而不是内部 RAM 中：可腾出一屏大小的内部 RAM，但绘制会变慢  </td></tr>
 <tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">在绘制下一帧的同时，从芯片的另一个核心发送每一帧：一帧的耗时是绘制和发送中较长的那个，而不是两者之和。需要双核芯片和两帧的外部内存（PSRAM）；没有时按绘制顺序发送，启动日志会说明  </td></tr>
+<td class="markdownTableBodyNone"><span class="tt">doubleBuffer</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">false</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">两个帧缓冲区，每帧后交换  </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><span class="tt">asyncPresent</span>  </td><td class="markdownTableBodyNone">bool  </td><td class="markdownTableBodyNone"><span class="tt">true</span>  </td><td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone">在绘制下一帧的同时，从芯片的另一个核心发送每一帧：一帧的耗时是绘制和发送中较长的那个，而不是两者之和。需要双核芯片和两帧的外部内存（PSRAM）；没有时按绘制顺序发送，启动日志会说明。发送在游戏不使用的那个核心上以优先级 5 运行：几乎不动时约占该核心的 1，屏幕大部分变化时最多 20% 到 40（在 ESP32-S3 开发板上测得）。该核心上优先级高于 5 的自有任务会先运行。关闭后该核心完全归游戏使用，每帧需要绘制加发送的时间。  </td></tr>
 </table>
 <h2 class="doxsection"><a class="anchor" id="c-touchpanelcomponent"></a>
 TouchPanelComponent</h2>
@@ -274,13 +276,32 @@ TouchPanelComponent</h2>
 更新日志</h1>
 <p>更新日志为英文。</p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.20.0</h2>
+0.21.0</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Added</h2>
+<ul>
+<li><b>Swap Bytes</b> on <span class="tt">DisplayPanelComponent</span> (<span class="tt">PanelDisplay::Options::swapBytes</span>): each pixel's two bytes go out the other way round, for a panel that reads them so. The symptom is dark colours turning pink and white turning green. Frames are then swapped in a copy, which costs a little time per frame; off, nothing changes.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+Changed</h2>
+<ul>
+<li><span class="tt">minEngine</span> 0.21.0: built against engine 0.21.0. A build of this package from before does not load and is rebuilt.</li>
+<li>A frame where several things moved is sent from the other core too, as a whole frame or one changed rectangle already was: the changed rows go into a frame copy and the drawing core draws on. They were sent as drawn, which kept the drawing core busy for as long as the wire took. On a T-Deck Plus the demo's effects scene presents in 3.5 ms instead of 4.3 ms.</li>
+<li>A panel that shows each frame on its refresh (a TE pin or its scanline) tells the engine how long a refresh takes, and the engine times frames to it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60 frames a second showed one frame twice every five seconds, a small stutter in anything scrolling; it no longer does. The frame readout's present time now includes the wait for the panel.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
+Fixed</h2>
+<ul>
+<li>A panel with no reset line starts from its own defaults. Restarting the chip does not reset the panel, so it kept whatever the firmware before had set, such as a byte order or gamma no part of this start-up sets: a T-Deck that had run firmware leaving its panel little-endian showed dark colours pink. Without a reset pin the controller now gets a software reset (0x01) first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up begins with one, and not on the SSD1351, which has none. Boot takes 120 ms longer on such boards.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
+0.20.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.20.0: built against engine 0.20.0. A build of this package from before does not load and is rebuilt.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md6"></a>
 Added</h2>
 <ul>
 <li>The package: <span class="tt">DisplayPanelComponent</span>, which starts a panel on a deki-spi bus from the boot scene and gives the engine <span class="tt">PanelDisplay</span>, a <span class="tt">Deki::IDisplay</span> presenting whole frames and changed rectangles with the UI overlay blended over them; <span class="tt">PanelController</span>, a MIPI DCS controller driven by a table per controller (ST7789 first, its start-up and MADCTL ported from LovyanGFX); <span class="tt">SpiPanelIO</span>, 4-wire SPI with pixels queued for DMA; and <span class="tt">initSequence</span>, a board's own start-up for its panel module, as text.</li>
@@ -302,7 +323,7 @@ Added</h2>
 </ul>
 <p>更早的版本：<a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
 <hr  />
-<p>由包的反射数据生成（引擎 0.20.2）。属性名就是场景文件中使用的键。重命名后会保留别名（<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">兼容性</a>）。 </p>
+<p>由包的反射数据生成（引擎 0.21.0）。属性名就是场景文件中使用的键。重命名后会保留别名（<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">兼容性</a>）。 </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->
