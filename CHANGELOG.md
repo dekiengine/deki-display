@@ -8,7 +8,7 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
-## Unreleased
+## 0.21.0
 
 ### Added
 - **Swap Bytes** on `DisplayPanelComponent` (`PanelDisplay::Options::swapBytes`):
@@ -18,6 +18,8 @@ alongside one that has them.
   nothing changes.
 
 ### Changed
+- `minEngine` 0.21.0: built against engine 0.21.0. A build of this package
+  from before does not load and is rebuilt.
 - A frame where several things moved is sent from the other core too, as a
   whole frame or one changed rectangle already was: the changed rows go into
   a frame copy and the drawing core draws on. They were sent as drawn, which
