@@ -23,6 +23,12 @@ alongside one that has them.
   a frame copy and the drawing core draws on. They were sent as drawn, which
   kept the drawing core busy for as long as the wire took. On a T-Deck Plus
   the demo's effects scene presents in 3.5 ms instead of 4.3 ms.
+- A panel that shows each frame on its refresh (a TE pin or its scanline)
+  tells the engine how long a refresh takes, and the engine times frames to
+  it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60
+  frames a second showed one frame twice every five seconds, a small
+  stutter in anything scrolling; it no longer does. The frame readout's
+  present time now includes the wait for the panel.
 
 ### Fixed
 - A panel with no reset line starts from its own defaults. Restarting the

@@ -311,7 +311,11 @@ public:
     DEKI_EXPORT
     DEKI_TOOLTIP("Send each frame from the chip's other core while the next is drawn: a frame costs the longer of "
                  "drawing and sending instead of both. Needs a dual-core chip and two frames of external memory "
-                 "(PSRAM); without them, frames are sent as they are drawn, and the boot log says so")
+                 "(PSRAM); without them, frames are sent as they are drawn, and the boot log says so. The sender "
+                 "runs on the core the game does not, at priority 5: about 1% of that core when little moves, and up "
+                 "to 20 to 40% when most of the screen changes (measured on ESP32-S3 boards). A task of your own on "
+                 "that core above priority 5 runs first. Off, the whole core is the game's, and each frame costs "
+                 "drawing and sending.")
     bool asyncPresent = true;
 
     // ========== SetupComponent ==========

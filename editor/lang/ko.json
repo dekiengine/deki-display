@@ -120,7 +120,7 @@
     "ST7789P3": "ST7789P3",
     "ST7796": "ST7796",
     "Scanline Sync": "주사선 동기화",
-    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so": "다음 프레임을 그리는 동안 칩의 다른 코어에서 각 프레임을 보냅니다. 한 프레임에 걸리는 시간은 그리기와 보내기의 합이 아니라 더 긴 쪽이 됩니다. 듀얼 코어 칩과 외부 메모리(PSRAM) 두 프레임 분량이 필요하며, 없으면 그리는 대로 보내고 부팅 로그에 그렇게 나옵니다",
+    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so. The sender runs on the core the game does not, at priority 5: about 1% of that core when little moves, and up to 20 to 40% when most of the screen changes (measured on ESP32-S3 boards). A task of your own on that core above priority 5 runs first. Off, the whole core is the game's, and each frame costs drawing and sending.": "다음 프레임을 그리는 동안 칩의 다른 코어에서 각 프레임을 보냅니다. 한 프레임에 걸리는 시간은 그리기와 보내기의 합이 아니라 더 긴 쪽이 됩니다. 듀얼 코어 칩과 외부 메모리(PSRAM) 두 프레임 분량이 필요하며, 없으면 그리는 대로 보내고 부팅 로그에 그렇게 나옵니다. 보내기는 게임이 쓰지 않는 코어에서 우선순위 5로 실행됩니다. 그 코어 사용량은 거의 움직이지 않을 때 약 1%, 화면 대부분이 바뀔 때 최대 20~40%입니다(ESP32-S3 보드에서 측정). 그 코어에서 우선순위 5보다 높은 직접 만든 태스크가 먼저 실행됩니다. 끄면 그 코어는 모두 게임 것이 되고, 각 프레임에 그리기와 보내기 시간이 모두 듭니다.",
     "Sends each pixel's two bytes the other way round. Turn it on when dark colours come out pink and white comes out green. Costs a copy of every frame": "각 픽셀의 두 바이트를 반대 순서로 보냅니다. 어두운 색이 분홍색으로, 흰색이 초록색으로 나오면 켜세요. 매 프레임을 복사하는 비용이 듭니다",
     "Spi Host": "SPI 호스트",
     "Spi Hz": "SPI Hz",

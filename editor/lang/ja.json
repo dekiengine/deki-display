@@ -120,7 +120,7 @@
     "ST7789P3": "ST7789P3",
     "ST7796": "ST7796",
     "Scanline Sync": "走査線で同期",
-    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so": "次のフレームを描いている間に、チップのもう一方のコアから各フレームを送ります。1 フレームにかかる時間は、描画と送信の合計ではなく長いほうになります。デュアルコアのチップと外部メモリ (PSRAM) 2 フレーム分が必要で、ない場合は描いた順に送り、起動ログにそう出ます",
+    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so. The sender runs on the core the game does not, at priority 5: about 1% of that core when little moves, and up to 20 to 40% when most of the screen changes (measured on ESP32-S3 boards). A task of your own on that core above priority 5 runs first. Off, the whole core is the game's, and each frame costs drawing and sending.": "次のフレームを描いている間に、チップのもう一方のコアから各フレームを送ります。1 フレームにかかる時間は、描画と送信の合計ではなく長いほうになります。デュアルコアのチップと外部メモリ (PSRAM) 2 フレーム分が必要で、ない場合は描いた順に送り、起動ログにそう出ます。送信はゲームが使わないほうのコアで優先度 5 で動きます。そのコアの使用量は、ほとんど動かないときは約 1%、画面の大部分が変わるときは最大 20〜40% です (ESP32-S3 のボードで計測)。そのコアで優先度 5 より高い自分のタスクは先に動きます。オフにするとそのコアはすべてゲームのものになり、各フレームに描画と送信の両方の時間がかかります。",
     "Sends each pixel's two bytes the other way round. Turn it on when dark colours come out pink and white comes out green. Costs a copy of every frame": "各ピクセルの 2 バイトを逆の順序で送ります。暗い色がピンクに、白が緑になるときにオンにします。毎フレームのコピーが必要になります",
     "Spi Host": "SPI ホスト",
     "Spi Hz": "SPI Hz",

@@ -120,7 +120,7 @@
     "ST7789P3": "ST7789P3",
     "ST7796": "ST7796",
     "Scanline Sync": "扫描线同步",
-    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so": "在绘制下一帧的同时，从芯片的另一个核心发送每一帧：一帧的耗时是绘制和发送中较长的那个，而不是两者之和。需要双核芯片和两帧的外部内存（PSRAM）；没有时按绘制顺序发送，启动日志会说明",
+    "Send each frame from the chip's other core while the next is drawn: a frame costs the longer of drawing and sending instead of both. Needs a dual-core chip and two frames of external memory (PSRAM); without them, frames are sent as they are drawn, and the boot log says so. The sender runs on the core the game does not, at priority 5: about 1% of that core when little moves, and up to 20 to 40% when most of the screen changes (measured on ESP32-S3 boards). A task of your own on that core above priority 5 runs first. Off, the whole core is the game's, and each frame costs drawing and sending.": "在绘制下一帧的同时，从芯片的另一个核心发送每一帧：一帧的耗时是绘制和发送中较长的那个，而不是两者之和。需要双核芯片和两帧的外部内存（PSRAM）；没有时按绘制顺序发送，启动日志会说明。发送在游戏不使用的那个核心上以优先级 5 运行：几乎不动时约占该核心的 1%，屏幕大部分变化时最多 20% 到 40%（在 ESP32-S3 开发板上测得）。该核心上优先级高于 5 的自有任务会先运行。关闭后该核心完全归游戏使用，每帧需要绘制加发送的时间。",
     "Sends each pixel's two bytes the other way round. Turn it on when dark colours come out pink and white comes out green. Costs a copy of every frame": "以相反的顺序发送每个像素的两个字节。深色显示为粉色、白色显示为绿色时打开。每一帧都要复制一次",
     "Spi Host": "SPI 主机",
     "Spi Hz": "SPI Hz",

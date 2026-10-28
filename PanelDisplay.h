@@ -115,6 +115,8 @@ public:
     /// Frames start on the panel's refresh (a TE pin is set and pulsing).
     bool IsTearFree() const { return (m_TePin >= 0 || m_Scanline) && !m_TeLost; }
 
+    uint32_t GetRefreshPeriodUs() const override { return IsTearFree() ? m_RefreshUs : 0u; }
+
     /// How far into a refresh of `refreshUs` (microseconds since it started)
     /// a frame that missed its start can begin without tearing, when frames
     /// take `writeUs` to go out (0: not known yet). From there the write
