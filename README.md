@@ -83,6 +83,10 @@ obj->AddComponent<DisplayPanelComponent>();
 
 Package Manager in the Deki Editor, or `DekiEditor --packages-add deki-display <project>`.
 
+## Community
+
+Questions, ideas and what you made with Deki: [the Deki Discord](https://dekiengine.com/discord/).
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE). Parts are derived from [LovyanGFX](https://github.com/lovyan03/LovyanGFX) under its FreeBSD licence: see [NOTICE](NOTICE).
