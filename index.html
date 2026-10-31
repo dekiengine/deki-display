@@ -56,7 +56,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.21.0</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.22.0</span>
    </div>
    <div id="projectbrief">Deki package reference</div>
   </td>
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki's own display library: panel controllers on SPI, quad SPI or 8- and 16-bit parallel buses, touch controllers, and frames that never tear</p>
-<p>Repository: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · Latest release: 0.21.0 · Needs engine 0.21.0+ · Requires: <a href="https://dekiengine.github.io/deki-spi/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/">deki-rendering</a></p>
+<p>Repository: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · Latest release: 0.22.0 · Needs engine 0.22.0+ · Requires: <a href="https://dekiengine.github.io/deki-spi/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/">deki-rendering</a></p>
 <p>Install with <span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span>, or from the Package Manager. The engine's own components and C++ API are in the <a href="https://dekiengine.github.io/docs/">Deki docs</a>.</p>
 <p>Shown in the editor as <b>Display</b>.</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -274,54 +274,35 @@ TouchPanelComponent</h2>
 <h1 class="doxsection"><a class="anchor" id="changelog"></a>
 Changelog</h1>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.21.0</h2>
+0.22.0</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Changed</h2>
+<ul>
+<li>Translations are keyed by the editor's names with their acronyms ("I2C Port", "SPI Host" rather than "I 2c Port", "Spi Host"), which the 0.22 editor shows.</li>
+<li><span class="tt">minEngine</span> 0.22.0: built against engine 0.22.0. A build of this package from before does not load and is rebuilt.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+0.21.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
 Added</h2>
 <ul>
 <li><b>Swap Bytes</b> on <span class="tt">DisplayPanelComponent</span> (<span class="tt">PanelDisplay::Options::swapBytes</span>): each pixel's two bytes go out the other way round, for a panel that reads them so. The symptom is dark colours turning pink and white turning green. Frames are then swapped in a copy, which costs a little time per frame; off, nothing changes.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.21.0: built against engine 0.21.0. A build of this package from before does not load and is rebuilt.</li>
 <li>A frame where several things moved is sent from the other core too, as a whole frame or one changed rectangle already was: the changed rows go into a frame copy and the drawing core draws on. They were sent as drawn, which kept the drawing core busy for as long as the wire took. On a T-Deck Plus the demo's effects scene presents in 3.5 ms instead of 4.3 ms.</li>
 <li>A panel that shows each frame on its refresh (a TE pin or its scanline) tells the engine how long a refresh takes, and the engine times frames to it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60 frames a second showed one frame twice every five seconds, a small stutter in anything scrolling; it no longer does. The frame readout's present time now includes the wait for the panel.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
 Fixed</h2>
 <ul>
 <li>A panel with no reset line starts from its own defaults. Restarting the chip does not reset the panel, so it kept whatever the firmware before had set, such as a byte order or gamma no part of this start-up sets: a T-Deck that had run firmware leaving its panel little-endian showed dark colours pink. Without a reset pin the controller now gets a software reset (0x01) first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up begins with one, and not on the SSD1351, which has none. Boot takes 120 ms longer on such boards.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
-0.20.0</h2>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
-Changed</h2>
-<ul>
-<li><span class="tt">minEngine</span> 0.20.0: built against engine 0.20.0. A build of this package from before does not load and is rebuilt.</li>
-</ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md6"></a>
-Added</h2>
-<ul>
-<li>The package: <span class="tt">DisplayPanelComponent</span>, which starts a panel on a deki-spi bus from the boot scene and gives the engine <span class="tt">PanelDisplay</span>, a <span class="tt">Deki::IDisplay</span> presenting whole frames and changed rectangles with the UI overlay blended over them; <span class="tt">PanelController</span>, a MIPI DCS controller driven by a table per controller (ST7789 first, its start-up and MADCTL ported from LovyanGFX); <span class="tt">SpiPanelIO</span>, 4-wire SPI with pixels queued for DMA; and <span class="tt">initSequence</span>, a board's own start-up for its panel module, as text.</li>
-<li>Async present (<span class="tt">asyncPresent</span>): each frame is sent from the other core while the next is drawn. A whole frame is copied, swapped into the wire's byte order as it is copied, to one of two copies in external DMA memory, and sent from there by DMA in parts as long as the bus takes, with no bands in internal RAM; a strip is copied to one of two copies in internal DMA memory and swapped in place a chunk at a time. The worker holds the bus across back-to-back frames and strips, with each one's window commands queued behind the one before, so the wire does not wait between them; a copy goes back to the drawing core as soon as its last part is sent. The platform runs the worker through <span class="tt">PanelDisplay::SetWorkerBackend</span> (deki-esp32-integration: a FreeRTOS task pinned to the other core). On a LilyGO T-Deck Plus at 80 MHz with the frame rate uncapped: 63.2 fps in whole frames with 83.6 KB of internal RAM free, 61.0 in strips of 40 rows (LovyanGFX: 62.6 with 73.8 KB, and 60.2).</li>
-<li>Touch: <span class="tt">TouchPanelComponent</span> starts a GT911 (<span class="tt">GT911Touch</span>, ported from LovyanGFX's driver) on a deki-i2c bus, shared with whatever else is on it, and gives deki-input <span class="tt">PanelTouchInput</span>: a press, moves and a release at screen pixels, turned with the display by <span class="tt">TouchMapper</span> (LovyanGFX's default calibration and rotation, so a board's touch bounds carry over). Without an INT pin, a point that stops changing is released and not pressed again until it moves.</li>
-<li>QSPI panels: <span class="tt">DisplayPanelComponent</span>'s <span class="tt">busType</span> <span class="tt">QSPI</span> drives an AMOLED through <span class="tt">QspiPanelIO</span> (each register write framed 0x02, pixels 0x32 on four lines, as LovyanGFX frames them). The RM67162 is the first: its start-up, MADCTL and offsets ported from LovyanGFX, rows widened to even, and brightness by command where an LCD has a backlight.</li>
-<li>The CST816S/T touch controller (<span class="tt">TouchController::CST816</span>). It sleeps, and does not answer on I2C, until touched: it is set up when it first answers, and a read it does not answer is no touch.</li>
-<li>Async present works with render buffers (<span class="tt">usePsram</span>, <span class="tt">doubleBuffer</span>) too: the worker sends a copy, so the engine never draws into what is being sent.</li>
-<li>Tear-free presenting: <span class="tt">DisplayPanelComponent</span>'s <span class="tt">tePin</span>, the panel's tearing-effect output. A panel refreshes its own rows one after another, and a frame written while the refresh passes shows half of each frame. With TE on (<span class="tt">0x35</span>), each frame starts as the panel starts a refresh, and goes in the panel's own row order, which a write outruns the refresh in. A screen shown turned is turned as it is sent: the controller stays at its own orientation, and the renderer is asked for strips of columns in the order the panel refreshes them (deki-rendering's <span class="tt">IScanOrderedDisplay</span>). With async present the worker does the turning, a band at a time while the band before it is on the wire. Whole frames and strips both. A TE line that never pulses is said once in the log, and frames go on without waiting. On a LilyGO T-Display S3 AMOLED (its panel refreshes at 59.6 Hz): 59.5 fps in strips with no tearing, and 28.6 in whole frames, which take 25 ms to draw in PSRAM.</li>
-<li>More controllers, each a table ported from LovyanGFX 1.2.29: ILI9341, ST7735 (the B version), ST7735S (the R version), GC9A01, ST7789P3, ST7796, ILI9488 and SSD1351 on SPI or a parallel bus, and the CO5300 AMOLED on QSPI. A controller names its own commands (<span class="tt">ControllerCommands</span>): the SSD1351's window is a byte a coordinate, its column and row commands trade places when turned, and its remap takes MADCTL's place. The GC9A01 opens its rows before a turned window's columns, as LovyanGFX does. Checked against LovyanGFX's bytes in tests; none has run on a board yet.</li>
-<li>18 bits a pixel: the ILI9488 takes no RGB565 over SPI, so its pixels go out as RGB666 through <span class="tt">Rgb666PanelIO</span>, which widens each piece into its own DMA buffers while the piece before is sent, and COLMOD is 0x66.</li>
-<li>Parallel panels: <span class="tt">busType</span> <span class="tt">Parallel8</span> and <span class="tt">Parallel16</span>, an 8080 bus of 8 or 16 data lines with DC, WR and RD pins and its write clock (<span class="tt">parallelWriteHz</span>). The platform drives the bus (<span class="tt">ParallelBus</span>, a factory it registers; <span class="tt">ParallelPanelIO</span> speaks to it), and the component starts it itself. On 16 lines a pixel goes as memory holds it, so a little-endian frame needs no byte swap.</li>
-<li>Touch: the FT5x06 family (FT5206, FT6206, FT6336 and others) on I2C, and the XPT2046 resistive controller on SPI, both ported from LovyanGFX. The XPT2046's raw readings need calibrating in the touch bounds. A controller whose count or pressure says when the finger has gone (<span class="tt">ITouchController::MayRepeatLastTouch</span> false) is not released for holding still.</li>
-<li>Tear-free: a frame that missed its refresh's start is started for the longest write any frame has taken (<span class="tt">PanelDisplay::LongestWriteUs</span>), not the shorter of the last two. The frame that opens a new scene is late (the scene loads in it) and changes the whole screen, while the frames before it changed a little: started for theirs, it began too late, the refresh caught it, and the screen tore across.</li>
-<li>Tear-free with no TE line: <span class="tt">scanlineSync</span> reads the panel's scanline (Get_Scanline, 0x45) back through the panel IO (<span class="tt">IPanelIO::Read</span>) at its own clock (<span class="tt">spiReadHz</span>), on MISO or, with <span class="tt">readsOnMosi</span>, on the panel's data line. <span class="tt">ScanlineClock</span> finds two refresh starts, where the count drops from the last row to the blanking (it holds there; the low byte rolling over at row 256 does not), and keeps the clock right with each start it catches. On a LilyGO T-Deck Plus: 60.2 Hz found, every demo scene at 60 fps with frames in step with the refresh.</li>
-<li>A frame that takes about a refresh to go out, or up to two, is started just behind the refresh rather than at once (<span class="tt">PanelDisplay::WritesBehind</span>): it never catches the refresh's rows up, and the next refresh shows it whole. Before, such a frame was taken to tear wherever it started.</li>
-<li>A turned frame is read a screen row at a time while it is turned, a run of neighbouring pixels from each, instead of one pixel per screen row: a whole frame in PSRAM, turned on the way out, went from 47.8 fps to 60 on the T-Deck Plus.</li>
-<li><span class="tt">asyncPresent</span> and <span class="tt">scanlineSync</span> are on by default: a board gets frames sent from the other core, and tear-free frames without a TE line, where it can. Where it cannot (one core, no PSRAM for the copies, a panel that cannot be read back) frames are sent as they are drawn, and the boot log says so as information, not an error. Scenes that set them keep what they set.</li>
-</ul>
 <p>Earlier releases: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a>.</p>
 <hr  />
-<p>Generated from the package's reflection data (engine 0.21.0). Property names are the keys used in scene files. Renames keep an alias (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">compatibility</a>). </p>
+<p>Generated from the package's reflection data (engine 0.22.0). Property names are the keys used in scene files. Renames keep an alias (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">compatibility</a>). </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->
