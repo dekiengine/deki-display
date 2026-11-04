@@ -1708,8 +1708,31 @@ TEST_F(DisplayTest, AsyncTurnedFramesAndStripsSendTheSameBytes)
     display.WaitForPresents();
     EXPECT_EQ(Wire(), asDrawn);
     EXPECT_EQ(Of(Event::Wait).size(), 1u);
+
+    // A whole frame drawn in the frame copy it lends, sent with no copy: the
+    // same bytes, frame after frame, past the two copies. One given back
+    // with nothing to send leaves the next free to draw in.
+    {
+        uint8_t* unused = display.LendFrame(frame.size());
+        ASSERT_NE(unused, nullptr);
+        display.PresentRegions(unused, 6, 4, Deki::ColorFormat::RGB565, nullptr, 0);
+    }
+    for (int k = 0; k < 3; ++k)
+    {
+        g_Events.clear();
+        uint8_t* lent = display.LendFrame(frame.size());
+        ASSERT_NE(lent, nullptr);
+        EXPECT_EQ(display.LendFrame(frame.size()), nullptr) << "one at a time";
+        std::memcpy(lent, frame.data(), frame.size());  // drawn in place
+        display.Present(lent, 6, 4, Deki::ColorFormat::RGB565);
+        display.WaitForPresents();
+        EXPECT_EQ(Wire(), asDrawn);
+        EXPECT_EQ(Of(Event::Wait).size(), 1u);
+    }
+    EXPECT_EQ(display.LendFrame(frame.size() + 2), nullptr) << "only a frame of its own size";
     ASSERT_TRUE(display.SetAsyncPresent(false));
     EXPECT_FALSE(display.LendsStripBuffers());
+    EXPECT_EQ(display.LendFrame(frame.size()), nullptr) << "sent as drawn, there are no copies to lend";
     PanelDisplay::SetWorkerBackend(nullptr);
 }
 

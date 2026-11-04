@@ -8,6 +8,16 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
+## Unreleased
+
+### Changed
+- A turned panel sending frames from the other core lends a frame copy to
+  draw a whole frame in (`PanelDisplay::LendFrame`, for
+  `IScanOrderedDisplay::LendFrame`) and sends it with no copy: the frame's
+  copy took the drawing core 5 ms a frame on a T-Deck. A frame lent comes
+  back with its Present, one with nothing to send included, and waiting for
+  the worker does not wait for it.
+
 ## 0.22.0
 
 ### Changed

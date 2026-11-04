@@ -461,6 +461,7 @@ void PanelDisplay::CopyToWire(uint16_t* dst, const uint16_t* src, size_t pixels)
 
 void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format)
 {
+    const int lentFrame = TakeBackFrame(framebuffer);
     if (!m_Initialized || !framebuffer)
     {
         return;
@@ -469,6 +470,10 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
     {
         if (format != Deki::ColorFormat::RGB565 || width != m_Width || height != m_Height)
         {
+            if (lentFrame >= 0)
+            {
+                GiveBackCopy(lentFrame);
+            }
             if (!m_TurnWarned)
             {
                 DEKI_LOG_ERROR(
@@ -480,7 +485,7 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
             return;
         }
         PresentTurned(reinterpret_cast<const uint16_t*>(framebuffer), width, 0, 0, width, height, 0, m_PanelHeight,
-                      true, false);
+                      true, false, -1, lentFrame);
         if (m_RenderBuffers[1])
         {
             m_RenderIndex = 1 - m_RenderIndex;
@@ -540,6 +545,16 @@ void PanelDisplay::PresentRegions(const uint8_t* framebuffer, int width, int hei
 void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
                                       const Deki::Rect* rects, int32_t count, bool frameStart)
 {
+    // A lent frame comes back here too, with something to send or nothing.
+    const int lentFrame = TakeBackFrame(framebuffer);
+    if (lentFrame >= 0 && (!m_Initialized || count == 0 || !m_Turned))
+    {
+        GiveBackCopy(lentFrame);
+        if (count == 0 || !m_Initialized)
+        {
+            return;
+        }
+    }
     // Nothing changed on the panel, or (drawing in strips) every strip has
     // been sent already: nothing to wait for either, so the strip the worker
     // is still sending goes on while the next frame is drawn.
@@ -578,7 +593,7 @@ void PanelDisplay::PresentRegionsFrom(const uint8_t* framebuffer, int width, int
             last = std::max(last, l);
         }
         PresentTurned(reinterpret_cast<const uint16_t*>(framebuffer), width, 0, 0, width, height, first, last,
-                      frameStart, false);
+                      frameStart, false, -1, lentFrame);
         if (m_RenderBuffers[1])
         {
             m_RenderIndex = 1 - m_RenderIndex;
@@ -1081,9 +1096,12 @@ void PanelDisplay::WaitForPresents()
     {
         return;
     }
-    // Both copies free: nothing queued or being sent.
+    // Both copies free, but for a frame lent to be drawn in: nothing queued
+    // or being sent. (The lent frame comes back with its Present, on this
+    // core.)
+    const int lent = m_LentFrame >= 0 ? 1 : 0;
     std::unique_lock<std::mutex> lock(m_Lock);
-    m_CopyFree.wait(lock, [this] { return m_FreeCopies == 2 || !m_WorkerRunning; });
+    m_CopyFree.wait(lock, [this, lent] { return m_FreeCopies + lent == 2 || !m_WorkerRunning; });
 }
 
 bool PanelDisplay::CanPresentAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format) const
@@ -1150,6 +1168,29 @@ uint8_t* PanelDisplay::GetStripBuffer(size_t bytes)
     }
     m_Lent = TakeCopy();
     return reinterpret_cast<uint8_t*>(m_Strip[m_Lent]);
+}
+
+uint8_t* PanelDisplay::LendFrame(size_t bytes)
+{
+    // Turned, a frame is sent from a copy as it was drawn, which the worker
+    // turns as it reads it, so the copy can be drawn in instead.
+    if (!m_Async || !m_Turned || m_LentFrame >= 0 || m_Lent >= 0 || bytes != m_StagingBytes || !EnsureBands())
+    {
+        return nullptr;
+    }
+    m_LentFrame = TakeCopy();
+    return m_Staging[m_LentFrame];
+}
+
+int PanelDisplay::TakeBackFrame(const uint8_t* framebuffer)
+{
+    const int lent = m_LentFrame;
+    if (lent < 0 || framebuffer != m_Staging[lent])
+    {
+        return -1;
+    }
+    m_LentFrame = -1;
+    return lent;
 }
 
 void PanelDisplay::GiveBackCopy(int index)
@@ -1675,10 +1716,15 @@ void PanelDisplay::PushPanelRowsBody(const uint16_t* src, int32_t stride, int32_
 }
 
 void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int32_t srcWidth,
-                                 int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy, int lent)
+                                 int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy, int lent,
+                                 int lentFrame)
 {
     if (last <= first)
     {
+        if (lentFrame >= 0)
+        {
+            GiveBackCopy(lentFrame);
+        }
         return;
     }
     if (m_Async)
@@ -1691,19 +1737,19 @@ void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t le
         // (The worker never allocates: its bands are made here, after the
         // strip copies, which need the bigger blocks of internal memory.)
         const size_t pixels = static_cast<size_t>(srcWidth) * srcHeight;
-        const bool strip = lent >= 0 || (stripCopy && pixels % m_PanelWidth == 0 &&
+        const bool strip = lent >= 0 || (lentFrame < 0 && stripCopy && pixels % m_PanelWidth == 0 &&
                                          EnsureStrips(static_cast<int>(pixels / m_PanelWidth)));
         if (!EnsureBands())
         {
-            if (lent >= 0)
+            if (lent >= 0 || lentFrame >= 0)
             {
-                GiveBackCopy(lent);
+                GiveBackCopy(lent >= 0 ? lent : lentFrame);
             }
             return;
         }
-        const int index = lent >= 0 ? lent : TakeCopy();
+        const int index = lent >= 0 ? lent : lentFrame >= 0 ? lentFrame : TakeCopy();
         uint16_t* dst = strip ? m_Strip[index] : reinterpret_cast<uint16_t*>(m_Staging[index]);
-        if (lent >= 0)
+        if (lent >= 0 || lentFrame >= 0)
         {
             // Drawn in place.
         }
@@ -1726,6 +1772,10 @@ void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t le
         job.srcStride = srcWidth;
         Post(job);
         return;
+    }
+    if (lentFrame >= 0)
+    {
+        GiveBackCopy(lentFrame);  // sent as it is below, from where it was drawn
     }
     if (frameStart)
     {

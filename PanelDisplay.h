@@ -111,6 +111,9 @@ public:
     // reads: the copy is lent to be drawn in, and sent with no copying.
     bool LendsStripBuffers() const override;
     uint8_t* GetStripBuffer(size_t bytes) override;
+    // Sent turned, a whole frame goes out of a frame copy the worker turns as
+    // it reads it: the copy is lent to be drawn in, and sent with no copying.
+    uint8_t* LendFrame(size_t bytes) override;
 
     /// Frames start on the panel's refresh (a TE pin is set and pulsing).
     bool IsTearFree() const { return (m_TePin >= 0 || m_Scanline) && !m_TeLost; }
@@ -222,7 +225,10 @@ private:
     int TakeCopy();
     // Gives back the copy TakeCopy last gave, unused: it is the next again.
     void GiveBackCopy(int index);
-    int m_Lent = -1;  // the strip copy lent to be drawn in, until its PresentStrip
+    int m_Lent = -1;       // the strip copy lent to be drawn in, until its PresentStrip
+    int m_LentFrame = -1;  // the frame copy lent to be drawn in, until its Present
+    // The lent frame copy `framebuffer` is, taken back, or -1.
+    int TakeBackFrame(const uint8_t* framebuffer);
     bool CanPresentAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format) const;
     // Copies rows [top, bottom) of the frame for the worker and queues them.
     // False when this present cannot go that way.
@@ -310,9 +316,10 @@ private:
     // rows [first, last) of the screen pixels `src` holds, a `srcWidth` x
     // `srcHeight` area with its top-left pixel at screen (left, top).
     // `lent`: src is strip copy m_Strip[lent], lent and drawn in, so it is
-    // not copied.
+    // not copied; `lentFrame` the same for frame copy m_Staging[lentFrame].
     void PresentTurned(const uint16_t* src, int32_t stride, int32_t left, int32_t top, int32_t srcWidth,
-                       int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy, int lent = -1);
+                       int32_t srcHeight, int first, int last, bool frameStart, bool stripCopy, int lent = -1,
+                       int lentFrame = -1);
     // The worker reads the overlay while it turns what it sends: changes to
     // it wait for the worker first.
     void BeforeOverlayChange();
