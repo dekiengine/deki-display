@@ -1045,10 +1045,10 @@ void PanelDisplay::RunWorker()
         m_PendingEnd = m_IO.GetQueuedCount();
         NotePartSent();
     }
-    {
-        std::lock_guard<std::mutex> lock(m_Lock);
-        m_WorkerRunning = false;
-    }
+    // Notified under the lock: once SetAsyncPresent(false) sees the worker
+    // stopped, the display may be destroyed, and the worker must not touch it.
+    std::lock_guard<std::mutex> lock(m_Lock);
+    m_WorkerRunning = false;
     m_CopyFree.notify_all();
 }
 

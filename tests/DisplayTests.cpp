@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -1086,6 +1087,11 @@ TEST_F(DisplayTest, AsyncFramesSendTheSameBytesAndLeaveTheFrameAlone)
     EXPECT_EQ(a, Frame565({ 0x1234, 0xABCD, 0xF800, 0x001F }));
 
     ASSERT_TRUE(display.SetAsyncPresent(false));
+    // The worker has returned; its thread ends just after, so give it a moment.
+    for (int i = 0; i < 1000 && g_WorkersRunning.load() != 0; ++i)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     EXPECT_EQ(g_WorkersRunning.load(), 0);
     PanelDisplay::SetWorkerBackend(nullptr);
 }
