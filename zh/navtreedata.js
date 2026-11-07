@@ -32,9 +32,9 @@ var NAVTREE =
       [ "TouchPanelComponent", "index.html#c-touchpanelcomponent", null ]
     ] ],
     [ "更新日志", "index.html#changelog", [
-      [ "0.30.0", "index.html#autotoc_md0", null ],
-      [ "Changed", "index.html#autotoc_md1", null ],
-      [ "0.22.0", "index.html#autotoc_md2", null ],
+      [ "0.30.3", "index.html#autotoc_md0", null ],
+      [ "Fixed", "index.html#autotoc_md1", null ],
+      [ "0.30.0", "index.html#autotoc_md2", null ],
       [ "Changed", "index.html#autotoc_md3", null ]
     ] ]
   ] ]

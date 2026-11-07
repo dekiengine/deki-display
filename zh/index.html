@@ -57,7 +57,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.30.0</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.30.3</span>
    </div>
    <div id="projectbrief">Deki 包参考</div>
   </td>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki 自己的显示库。驱动大多数爱好者开发板使用的屏幕，读取它们的触摸，并完整地发送每一帧。</p>
-<p>仓库：<a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新版本：0.30.0 · 需要引擎 0.30.0 或更高版本 · 依赖：<a href="https://dekiengine.github.io/deki-spi/zh/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/zh/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/zh/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/zh/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/zh/">deki-rendering</a></p>
+<p>仓库：<a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新版本：0.30.3 · 需要引擎 0.30.0 或更高版本 · 依赖：<a href="https://dekiengine.github.io/deki-spi/zh/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/zh/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/zh/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/zh/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/zh/">deki-rendering</a></p>
 <p>使用 <span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> 或通过包管理器安装。引擎自身的组件和 C++ API 见 <a href="https://dekiengine.github.io/docs/zh/">Deki 文档</a>。</p>
 <p>在编辑器中显示为 **Display**。</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -276,24 +276,23 @@ TouchPanelComponent</h2>
 更新日志</h1>
 <p>更新日志为英文。</p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.30.0</h2>
+0.30.3</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Fixed</h2>
+<ul>
+<li>The present worker signals that it has stopped while it still holds the lock, so a display destroyed right after async present is turned off no longer races the worker's last signal.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+0.30.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.30.0: built against engine 0.30.0. A build of this package from before does not load and is rebuilt.</li>
 <li>A turned panel sending frames from the other core lends a frame copy to draw a whole frame in (<span class="tt">PanelDisplay::LendFrame</span>, for <span class="tt">IScanOrderedDisplay::LendFrame</span>) and sends it with no copy: the frame's copy took the drawing core 5 ms a frame on a T-Deck. A frame lent comes back with its Present, one with nothing to send included, and waiting for the worker does not wait for it.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
-0.22.0</h2>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
-Changed</h2>
-<ul>
-<li>Translations are keyed by the editor's names with their acronyms ("I2C Port", "SPI Host" rather than "I 2c Port", "Spi Host"), which the 0.22 editor shows.</li>
-<li><span class="tt">minEngine</span> 0.22.0: built against engine 0.22.0. A build of this package from before does not load and is rebuilt.</li>
-</ul>
 <p>更早的版本：<a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
 <hr  />
-<p>由包的反射数据生成（引擎 0.30.0）。属性名就是场景文件中使用的键。重命名后会保留别名（<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">兼容性</a>）。 </p>
+<p>由包的反射数据生成（引擎 0.30.3）。属性名就是场景文件中使用的键。重命名后会保留别名（<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">兼容性</a>）。 </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->

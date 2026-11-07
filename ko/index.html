@@ -57,7 +57,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.30.0</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.30.3</span>
    </div>
    <div id="projectbrief">Deki 패키지 레퍼런스</div>
   </td>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki 자체 디스플레이 라이브러리. 취미용 보드에서 흔히 쓰는 화면을 구동하고, 터치를 읽고, 모든 프레임을 온전히 보냅니다.</p>
-<p>저장소: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 최신 릴리스: 0.30.0 · 엔진 0.30.0 이상 필요 · 의존: <a href="https://dekiengine.github.io/deki-spi/ko/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ko/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ko/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ko/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ko/">deki-rendering</a></p>
+<p>저장소: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 최신 릴리스: 0.30.3 · 엔진 0.30.0 이상 필요 · 의존: <a href="https://dekiengine.github.io/deki-spi/ko/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ko/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ko/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ko/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ko/">deki-rendering</a></p>
 <p><span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> 또는 패키지 관리자로 설치합니다. 엔진 자체의 컴포넌트와 C++ API는 <a href="https://dekiengine.github.io/docs/ko/">Deki 문서</a>에 있습니다.</p>
 <p>에디터에는 <b>Display</b>(으)로 표시됩니다.</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -276,24 +276,23 @@ TouchPanelComponent</h2>
 변경 내역</h1>
 <p>변경 내역은 영어로 되어 있습니다.</p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.30.0</h2>
+0.30.3</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Fixed</h2>
+<ul>
+<li>The present worker signals that it has stopped while it still holds the lock, so a display destroyed right after async present is turned off no longer races the worker's last signal.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+0.30.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
 Changed</h2>
 <ul>
 <li><span class="tt">minEngine</span> 0.30.0: built against engine 0.30.0. A build of this package from before does not load and is rebuilt.</li>
 <li>A turned panel sending frames from the other core lends a frame copy to draw a whole frame in (<span class="tt">PanelDisplay::LendFrame</span>, for <span class="tt">IScanOrderedDisplay::LendFrame</span>) and sends it with no copy: the frame's copy took the drawing core 5 ms a frame on a T-Deck. A frame lent comes back with its Present, one with nothing to send included, and waiting for the worker does not wait for it.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
-0.22.0</h2>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
-Changed</h2>
-<ul>
-<li>Translations are keyed by the editor's names with their acronyms ("I2C Port", "SPI Host" rather than "I 2c Port", "Spi Host"), which the 0.22 editor shows.</li>
-<li><span class="tt">minEngine</span> 0.22.0: built against engine 0.22.0. A build of this package from before does not load and is rebuilt.</li>
-</ul>
 <p>이전 릴리스: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
 <hr  />
-<p>패키지의 리플렉션 데이터에서 생성했습니다(엔진 0.30.0). 속성 이름은 씬 파일에서 쓰는 키입니다. 이름을 바꿔도 별칭이 유지됩니다(<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">호환성</a>). </p>
+<p>패키지의 리플렉션 데이터에서 생성했습니다(엔진 0.30.3). 속성 이름은 씬 파일에서 쓰는 키입니다. 이름을 바꿔도 별칭이 유지됩니다(<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">호환성</a>). </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->
