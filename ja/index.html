@@ -57,7 +57,7 @@
  <tbody>
  <tr id="projectrow">
   <td id="projectalign">
-   <div id="projectname">deki-display<span id="projectnumber">&#160;0.22.0</span>
+   <div id="projectname">deki-display<span id="projectnumber">&#160;0.30.0</span>
    </div>
    <div id="projectbrief">Deki パッケージリファレンス</div>
   </td>
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded',() => { initNavTree('index.html',''
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="mainpage"></a></p>
 <p>Deki 独自のディスプレイライブラリ。趣味のボードでよく使われる画面を動かし、タッチを読み、どのフレームも丸ごと送ります。</p>
-<p>リポジトリ: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新リリース: 0.22.0 · エンジン 0.22.0 以降が必要 · 依存: <a href="https://dekiengine.github.io/deki-spi/ja/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ja/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ja/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ja/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ja/">deki-rendering</a></p>
+<p>リポジトリ: <a href="https://github.com/dekiengine/deki-display">github.com/dekiengine/deki-display</a> · 最新リリース: 0.30.0 · エンジン 0.30.0 以降が必要 · 依存: <a href="https://dekiengine.github.io/deki-spi/ja/">deki-spi</a>, <a href="https://dekiengine.github.io/deki-gpio/ja/">deki-gpio</a>, <a href="https://dekiengine.github.io/deki-i2c/ja/">deki-i2c</a>, <a href="https://dekiengine.github.io/deki-input/ja/">deki-input</a>, <a href="https://dekiengine.github.io/deki-rendering/ja/">deki-rendering</a></p>
 <p><span class="tt">DekiEditor --packages-add deki-display &lt;project&gt;</span> か、パッケージマネージャーからインストールします。エンジン自身のコンポーネントと C++ API は <a href="https://dekiengine.github.io/docs/ja/">Deki のドキュメント</a>にあります。</p>
 <p>エディターでは <b>Display</b> と表示されます。</p>
 <h1 class="doxsection"><a class="anchor" id="components"></a>
@@ -276,35 +276,24 @@ TouchPanelComponent</h2>
 変更履歴</h1>
 <p>変更履歴は英語です。</p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md0"></a>
-0.22.0</h2>
+0.30.0</h2>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+Changed</h2>
+<ul>
+<li><span class="tt">minEngine</span> 0.30.0: built against engine 0.30.0. A build of this package from before does not load and is rebuilt.</li>
+<li>A turned panel sending frames from the other core lends a frame copy to draw a whole frame in (<span class="tt">PanelDisplay::LendFrame</span>, for <span class="tt">IScanOrderedDisplay::LendFrame</span>) and sends it with no copy: the frame's copy took the drawing core 5 ms a frame on a T-Deck. A frame lent comes back with its Present, one with nothing to send included, and waiting for the worker does not wait for it.</li>
+</ul>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+0.22.0</h2>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
 Changed</h2>
 <ul>
 <li>Translations are keyed by the editor's names with their acronyms ("I2C Port", "SPI Host" rather than "I 2c Port", "Spi Host"), which the 0.22 editor shows.</li>
 <li><span class="tt">minEngine</span> 0.22.0: built against engine 0.22.0. A build of this package from before does not load and is rebuilt.</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
-0.21.0</h2>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md3"></a>
-Added</h2>
-<ul>
-<li><b>Swap Bytes</b> on <span class="tt">DisplayPanelComponent</span> (<span class="tt">PanelDisplay::Options::swapBytes</span>): each pixel's two bytes go out the other way round, for a panel that reads them so. The symptom is dark colours turning pink and white turning green. Frames are then swapped in a copy, which costs a little time per frame; off, nothing changes.</li>
-</ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md4"></a>
-Changed</h2>
-<ul>
-<li><span class="tt">minEngine</span> 0.21.0: built against engine 0.21.0. A build of this package from before does not load and is rebuilt.</li>
-<li>A frame where several things moved is sent from the other core too, as a whole frame or one changed rectangle already was: the changed rows go into a frame copy and the drawing core draws on. They were sent as drawn, which kept the drawing core busy for as long as the wire took. On a T-Deck Plus the demo's effects scene presents in 3.5 ms instead of 4.3 ms.</li>
-<li>A panel that shows each frame on its refresh (a TE pin or its scanline) tells the engine how long a refresh takes, and the engine times frames to it. On a T-Deck Plus, whose panel refreshes at 60.2 Hz, a game at 60 frames a second showed one frame twice every five seconds, a small stutter in anything scrolling; it no longer does. The frame readout's present time now includes the wait for the panel.</li>
-</ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md5"></a>
-Fixed</h2>
-<ul>
-<li>A panel with no reset line starts from its own defaults. Restarting the chip does not reset the panel, so it kept whatever the firmware before had set, such as a byte order or gamma no part of this start-up sets: a T-Deck that had run firmware leaving its panel little-endian showed dark colours pink. Without a reset pin the controller now gets a software reset (0x01) first, then 120 ms, as ESP-IDF's driver does; not twice where the start-up begins with one, and not on the SSD1351, which has none. Boot takes 120 ms longer on such boards.</li>
-</ul>
 <p>それ以前のリリース: <a href="https://github.com/dekiengine/deki-display/blob/master/CHANGELOG.md">CHANGELOG.md</a></p>
 <hr  />
-<p>パッケージのリフレクションデータから生成しています (エンジン 0.22.0)。プロパティ名はシーンファイルで使われるキーです。名前を変えても別名が残ります (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">互換性</a>)。 </p>
+<p>パッケージのリフレクションデータから生成しています (エンジン 0.30.0)。プロパティ名はシーンファイルで使われるキーです。名前を変えても別名が残ります (<a href="https://github.com/dekiengine/deki-editor/blob/master/COMPATIBILITY.md">互換性</a>)。 </p>
 </div></div><!-- PageDoc -->
 <a href="doxygen_crawl.html"></a>
 </div><!-- contents -->
