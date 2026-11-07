@@ -8,9 +8,11 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
-## Unreleased
+## 0.30.0
 
 ### Changed
+- `minEngine` 0.30.0: built against engine 0.30.0. A build of this package
+  from before does not load and is rebuilt.
 - A turned panel sending frames from the other core lends a frame copy to
   draw a whole frame in (`PanelDisplay::LendFrame`, for
   `IScanOrderedDisplay::LendFrame`) and sends it with no copy: the frame's

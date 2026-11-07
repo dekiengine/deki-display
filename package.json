@@ -1,7 +1,7 @@
 {
   "id": "deki-display",
   "displayName": "Display",
-  "minEngine": "0.22.0",
+  "minEngine": "0.30.0",
   "buildDefine": "DEKI_PACKAGE_DISPLAY",
   "requires": [
     "deki-spi",
