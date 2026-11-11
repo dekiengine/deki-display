@@ -111,12 +111,14 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         if (!panel->parallelBus)
         {
             DEKI_LOG_ERROR("DisplayPanelComponent: the %d-bit parallel bus did not start (WR %d, DC %d, D0 %d)",
-                           (int)bus.width, (int)wrPin, (int)dcPin, (int)d0Pin);
+                           static_cast<int>(bus.width), static_cast<int>(wrPin), static_cast<int>(dcPin),
+                           static_cast<int>(d0Pin));
             finish(false);
             return;
         }
         panel->busIO = std::make_unique<ParallelPanelIO>(*panel->parallelBus);
-        snprintf(wiring, sizeof(wiring), "%d-bit parallel at %u Hz", (int)bus.width, (unsigned)bus.clockHz);
+        snprintf(wiring, sizeof(wiring), "%d-bit parallel at %u Hz", static_cast<int>(bus.width),
+                 static_cast<unsigned>(bus.clockHz));
     }
     else
     {
@@ -125,7 +127,7 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         {
             DEKI_LOG_ERROR("DisplayPanelComponent: no SPI bus on host %d - add an SPI Bus component for it before the "
                            "display in the setup list",
-                           (int)spiHost);
+                           static_cast<int>(spiHost));
             finish(false);
             return;
         }
@@ -133,7 +135,7 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         {
             DEKI_LOG_ERROR("DisplayPanelComponent: a QSPI panel needs IO2 and IO3, and the SPI Bus on host %d has "
                            "none",
-                           (int)spiHost);
+                           static_cast<int>(spiHost));
             finish(false);
             return;
         }
@@ -152,8 +154,9 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         DekiSpi::IDekiSPIDevice* dev = bus->AddDevice(device);
         if (!dev)
         {
-            DEKI_LOG_ERROR("DisplayPanelComponent: SPI host %d refused the panel (CS %d, %d Hz): %s", (int)spiHost,
-                           (int)csPin, (int)spiWriteHz, bus->GetLastError());
+            DEKI_LOG_ERROR("DisplayPanelComponent: SPI host %d refused the panel (CS %d, %d Hz): %s",
+                           static_cast<int>(spiHost), static_cast<int>(csPin), static_cast<int>(spiWriteHz),
+                           bus->GetLastError());
             finish(false);
             return;
         }
@@ -165,8 +168,8 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
         {
             panel->busIO = std::make_unique<SpiPanelIO>(dev);
         }
-        snprintf(wiring, sizeof(wiring), "%s host %d at %u Hz", quad ? "QSPI" : "SPI", (int)spiHost,
-                 (unsigned)dev->GetClockHz());
+        snprintf(wiring, sizeof(wiring), "%s host %d at %u Hz", quad ? "QSPI" : "SPI", static_cast<int>(spiHost),
+                 static_cast<unsigned>(dev->GetClockHz()));
     }
     // A controller that takes 18 bits a pixel on this bus gets them widened.
     const bool pixels18 = GetControllerInfo(controller).spiNeeds18Bits && busType == DisplayBus::SPI;
@@ -191,9 +194,9 @@ void DisplayPanelComponent::Setup(SetupCallback onComplete)
     config.hasChipSelect = csPin >= 0;
     config.pixels18 = pixels18;
     DEKI_LOG_INFO("DisplayPanelComponent: %s %dx%d on %s (CS %d, DC %d, RST %d), %s start-up%s",
-                  GetControllerInfo(controller).name, (int)panelWidth, (int)panelHeight, wiring, (int)csPin,
-                  quad ? -1 : (int)dcPin, (int)rstPin, init.empty() ? "default" : "the board's",
-                  pixels18 ? ", RGB666" : "");
+                  GetControllerInfo(controller).name, static_cast<int>(panelWidth), static_cast<int>(panelHeight),
+                  wiring, static_cast<int>(csPin), quad ? -1 : static_cast<int>(dcPin), static_cast<int>(rstPin),
+                  init.empty() ? "default" : "the board's", pixels18 ? ", RGB666" : "");
     if (!panel->controller->Init(config, &init))
     {
         finish(false);

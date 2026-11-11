@@ -8,6 +8,16 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
+## Unreleased
+
+### Fixed
+- A panel no longer goes black when the game has used up the internal RAM.
+  The display frees its DMA bands once the panel is cleared, so a frame drawn
+  in strips can have that RAM, and takes them back on the first present. When
+  that RAM had gone since, every present failed and logged an error. It now
+  takes smaller bands, down to a row, and logs a warning once; sending is a
+  little slower with fewer rows.
+
 ## 0.30.3
 
 ### Fixed

@@ -112,7 +112,8 @@ bool PanelDisplay::Start(const Options& options)
     m_Height = m_Controller.GetHeight();
     if (m_Width <= 0 || m_Height <= 0)
     {
-        DEKI_LOG_ERROR("PanelDisplay: the panel has no size (%dx%d)", (int)m_Width, (int)m_Height);
+        DEKI_LOG_ERROR("PanelDisplay: the panel has no size (%dx%d)", static_cast<int>(m_Width),
+                       static_cast<int>(m_Height));
         return false;
     }
     m_WireBigEndian = m_IO.PixelsBigEndian() != options.swapBytes;
@@ -127,6 +128,7 @@ bool PanelDisplay::Start(const Options& options)
     const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
     const size_t maxRows = std::max<size_t>(1, m_IO.GetMaxChunkBytes() / rowBytes);
     m_BandRows = static_cast<int32_t>(std::clamp<size_t>(options.bandRows > 0 ? options.bandRows : 16, 1, maxRows));
+    m_WantedBandRows = m_BandRows;
     if (!EnsureBands())
     {
         return false;
@@ -165,8 +167,9 @@ bool PanelDisplay::Start(const Options& options)
     // drawn in strips never does: its strips are sent from their own copies,
     // and 20 KB of internal RAM is the scene's.
     FreeBands();
-    DEKI_LOG_INFO("PanelDisplay: %dx%d %s, bands of %d rows, %s on the wire", (int)m_Width, (int)m_Height,
-                  m_Controller.GetInfo().name, (int)m_BandRows, m_SwapRGB565 ? "swapped" : "as drawn");
+    DEKI_LOG_INFO("PanelDisplay: %dx%d %s, bands of %d rows, %s on the wire", static_cast<int>(m_Width),
+                  static_cast<int>(m_Height), m_Controller.GetInfo().name, static_cast<int>(m_BandRows),
+                  m_SwapRGB565 ? "swapped" : "as drawn");
     return true;
 }
 
@@ -213,25 +216,37 @@ bool PanelDisplay::EnsureBands()
     {
         return true;
     }
-    const size_t bytes = static_cast<size_t>(m_PanelWidth) * m_BandRows * sizeof(uint16_t);
-    for (uint16_t*& band : m_Band)
+    // The panel reads the bands by DMA. Internal memory: some of the chip's
+    // RAM is out of a peripheral's reach, and DMA from it corrupts the display
+    // without an error. When the game has used up the internal RAM since the
+    // bands were last freed, smaller bands still reach the screen, a little
+    // slower, rather than leave it black.
+    const size_t rowBytes = static_cast<size_t>(m_PanelWidth) * sizeof(uint16_t);
+    const int32_t wanted = m_WantedBandRows > 0 ? m_WantedBandRows : std::max<int32_t>(1, m_BandRows);
+    for (int32_t rows = wanted; rows >= 1; rows /= 2)
     {
-        if (band)
+        const size_t bytes = rowBytes * static_cast<size_t>(rows);
+        bool got = true;
+        for (uint16_t*& band : m_Band)
         {
-            continue;
+            band = static_cast<uint16_t*>(Deki::Memory::AllocateDma(bytes, Deki::Memory::Internal));
+            got = got && band != nullptr;
         }
-        // The panel reads the bands by DMA. Internal memory: some of the
-        // chip's RAM is out of a peripheral's reach, and DMA from it corrupts
-        // the display without an error.
-        band = static_cast<uint16_t*>(Deki::Memory::AllocateDma(bytes, Deki::Memory::Internal));
-        if (!band)
+        if (got)
         {
-            DEKI_LOG_ERROR("PanelDisplay: cannot allocate a %zu-byte band", bytes);
-            FreeBands();
-            return false;
+            m_BandRows = rows;
+            if (rows < wanted && !m_SaidBandsShort)
+            {
+                m_SaidBandsShort = true;
+                DEKI_LOG_WARNING("PanelDisplay: internal RAM is short; sending in bands of %d rows instead of %d",
+                                 static_cast<int>(rows), static_cast<int>(wanted));
+            }
+            return true;
         }
+        FreeBands();
     }
-    return true;
+    DEKI_LOG_ERROR("PanelDisplay: cannot allocate a %zu-byte band", rowBytes);
+    return false;
 }
 
 void PanelDisplay::FreeBands()
@@ -518,8 +533,8 @@ void PanelDisplay::Present(const uint8_t* framebuffer, int width, int height, De
         format == Deki::ColorFormat::RGB565 && !m_SwapRGB565 && !HasOverlay() && width == m_Width && height == m_Height;
     if (m_Presents++ == 0)
     {
-        DEKI_LOG_INTERNAL("PanelDisplay: first present: fmt=%d %dx%d overlay=%d direct=%d", (int)format, width, height,
-                          HasOverlay() ? 1 : 0, direct ? 1 : 0);
+        DEKI_LOG_INTERNAL("PanelDisplay: first present: fmt=%d %dx%d overlay=%d direct=%d", static_cast<int>(format),
+                          width, height, HasOverlay() ? 1 : 0, direct ? 1 : 0);
     }
     if (direct)
     {

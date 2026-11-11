@@ -340,6 +340,9 @@ private:
 
     uint16_t* m_Band[2] = { nullptr, nullptr };
     int32_t m_BandRows = 0;
+    // The rows asked for; m_BandRows is fewer while internal RAM is short.
+    int32_t m_WantedBandRows = 0;
+    bool m_SaidBandsShort = false;
     int m_BandIndex = 0;
     std::vector<Deki::Rect> m_BandScratch;
     // Puts the rectangles' rows into m_BandScratch as row bands: widened to

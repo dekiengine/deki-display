@@ -89,7 +89,7 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         if (!bus)
         {
             DEKI_LOG_ERROR("TouchPanelComponent: no SPI bus on host %d - add an SPI Bus component for it before touch",
-                           (int)spiHost);
+                           static_cast<int>(spiHost));
             finish(false);
             return;
         }
@@ -102,15 +102,15 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         DekiSpi::IDekiSPIDevice* dev = bus->AddDevice(device);
         if (!dev)
         {
-            DEKI_LOG_ERROR("TouchPanelComponent: SPI host %d refused the XPT2046 (CS %d): %s", (int)spiHost, (int)csPin,
-                           bus->GetLastError());
+            DEKI_LOG_ERROR("TouchPanelComponent: SPI host %d refused the XPT2046 (CS %d): %s",
+                           static_cast<int>(spiHost), static_cast<int>(csPin), bus->GetLastError());
             finish(false);
             return;
         }
         auto xpt = std::make_unique<XPT2046Touch>(dev, gpio, intPin);
         xpt->Init();
         touch = std::move(xpt);
-        snprintf(where, sizeof(where), "on SPI host %d (CS %d)", (int)spiHost, (int)csPin);
+        snprintf(where, sizeof(where), "on SPI host %d (CS %d)", static_cast<int>(spiHost), static_cast<int>(csPin));
     }
     else
     {
@@ -118,7 +118,7 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         if (!bus)
         {
             DEKI_LOG_ERROR("TouchPanelComponent: no I2C bus on port %d - add an I2C Bus component for it before touch",
-                           (int)i2cPort);
+                           static_cast<int>(i2cPort));
             finish(false);
             return;
         }
@@ -140,7 +140,7 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
             if (!StartWithRetries(*ft))
             {
                 DEKI_LOG_ERROR("TouchPanelComponent: the FT5x06 on I2C port %d does not answer (0x%02X); no touch",
-                               (int)i2cPort, ft->GetAddress());
+                               static_cast<int>(i2cPort), ft->GetAddress());
                 finish(true);
                 return;
             }
@@ -157,14 +157,14 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
                 // touch.
                 DEKI_LOG_ERROR("TouchPanelComponent: the GT911 on I2C port %d does not answer (0x5D or 0x14); no "
                                "touch",
-                               (int)i2cPort);
+                               static_cast<int>(i2cPort));
                 finish(true);
                 return;
             }
             address = gt->GetAddress();
             touch = std::move(gt);
         }
-        snprintf(where, sizeof(where), "at 0x%02X on I2C port %d", address, (int)i2cPort);
+        snprintf(where, sizeof(where), "at 0x%02X on I2C port %d", address, static_cast<int>(i2cPort));
     }
 
     TouchMapper mapper;
@@ -188,7 +188,7 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
     }
     static const char* const kNames[] = { "GT911", "CST816", "FT5x06", "XPT2046" };
     DEKI_LOG_INFO("TouchPanelComponent: %s %s (INT %d, RST %d), as touch input", kNames[static_cast<int>(controller)],
-                  where, (int)intPin, (int)rstPin);
+                  where, static_cast<int>(intPin), static_cast<int>(rstPin));
 
     // Touch outlives scene changes, as the display does.
     if (GetOwner())

@@ -27,6 +27,8 @@
 #include "DekiSPI.h"
 
 #include <deki/Engine.h>
+#include <deki/providers/IMemoryProvider.h>
+#include <cstdlib>
 
 #include <algorithm>
 #include <atomic>
@@ -859,6 +861,65 @@ TEST_F(DisplayTest, ABandIsNeverLongerThanOneTransfer)
     const std::vector<uint8_t> frame(8 * 10 * 2, 0);
     display.Present(frame.data(), 8, 10, Deki::ColorFormat::RGB565);
     EXPECT_EQ(Of(Event::Pixels).size(), 4u);  // 3, 3, 3, 1 rows
+}
+
+namespace
+{
+// Refuses any DMA block bigger than `limit` bytes: internal RAM used up by the
+// game since the display last held its bands.
+class ShortDmaProvider : public Deki::IMemoryProvider
+{
+public:
+    explicit ShortDmaProvider(size_t limit)
+        : m_Limit(limit)
+    {
+    }
+    bool Initialize() override { return true; }
+    void Shutdown() override {}
+    bool Serves(Deki::Memory::Region region) const override
+    {
+        return region == Deki::Memory::Internal || region == Deki::Memory::External;
+    }
+    void* Allocate(Deki::Memory::Region, size_t bytes, bool needsDma) override
+    {
+        return needsDma && bytes > m_Limit ? nullptr : malloc(bytes);
+    }
+    void Free(Deki::Memory::Region, void* ptr) override { free(ptr); }
+    size_t GetAvailable(Deki::Memory::Region) const override { return 0; }
+
+private:
+    size_t m_Limit;
+};
+}  // namespace
+
+// Short of internal RAM for its bands, the display sends in smaller ones
+// rather than nothing.
+TEST_F(DisplayTest, ShortOfMemoryTheBandsGetSmaller)
+{
+    RecordingIO io;
+    io.bigEndian = !Deki::kRGB565BigEndian;  // swapped, so through the bands
+    PanelController panel(io, &RecordDelay);
+    ASSERT_TRUE(panel.Init(SmallPanel(8, 40), nullptr));
+    PanelDisplay display(panel, io);
+    PanelDisplay::Options options;
+    options.bandRows = 16;
+    ASSERT_TRUE(display.Start(options));  // frees its bands once the panel is clear
+    g_Events.clear();
+
+    Deki::Memory::SetBackend(new ShortDmaProvider(8 * 5 * 2));  // room for 5 rows: bands of 4
+    const std::vector<uint8_t> frame(8 * 40 * 2, 0);
+    display.Present(frame.data(), 8, 40, Deki::ColorFormat::RGB565);
+    Deki::Memory::SetBackend(nullptr);
+
+    const std::vector<Event> parts = Of(Event::Pixels);
+    ASSERT_EQ(parts.size(), 10u);
+    size_t sent = 0;
+    for (const Event& part : parts)
+    {
+        EXPECT_EQ(part.bytes.size(), 8u * 4 * 2);
+        sent += part.bytes.size();
+    }
+    EXPECT_EQ(sent, frame.size());
 }
 
 TEST_F(DisplayTest, StartClearsThePanelBeforeTheBacklightComesOn)
