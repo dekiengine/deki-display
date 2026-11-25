@@ -4,6 +4,8 @@
 
 #include "GT911Touch.h"
 
+#include <deki/LogSystem.h>
+
 #include <algorithm>
 
 namespace DekiDisplay
@@ -15,6 +17,7 @@ constexpr uint8_t kStatus[] = { 0x81, 0x4E };
 constexpr uint8_t kPoints[] = { 0x81, 0x4F };
 constexpr uint8_t kClearStatus[] = { 0x81, 0x4E, 0x00 };
 constexpr uint8_t kSleep[] = { 0x80, 0x40, 0x05 };
+constexpr uint8_t kModuleSwitch1[] = { 0x80, 0x4D };  // its INT's trigger, bits 0 and 1
 }  // namespace
 
 GT911Touch::GT911Touch(DekiI2c::IDekiI2C* bus, DekiGpio::IDekiGPIO* gpio, uint8_t address, int32_t intPin,
@@ -27,6 +30,16 @@ GT911Touch::GT911Touch(DekiI2c::IDekiI2C* bus, DekiGpio::IDekiGPIO* gpio, uint8_
       m_Delay(delay),
       m_Now(now)
 {
+}
+
+bool GT911Touch::ReportWaiting() const
+{
+    if (m_IntPin < 0 || m_IntMode == 0 || m_IntMode == 1)
+    {
+        return true;  // no INT, or one that only pulses: ask the controller
+    }
+    const bool high = m_Gpio->Read(m_IntPin);
+    return m_IntMode == 3 ? high : !high;
 }
 
 bool GT911Touch::ClearStatus()
@@ -61,6 +74,16 @@ bool GT911Touch::Init()
         if (ClearStatus())
         {
             m_Started = true;
+            uint8_t sw = 0;
+            if (m_Bus->WriteRead(m_Address, kModuleSwitch1, sizeof(kModuleSwitch1), &sw, 1))
+            {
+                m_IntMode = sw & 0x03;
+                if (m_IntPin >= 0 && m_IntMode < 2)
+                {
+                    DEKI_LOG_INFO("GT911: INT pulses on a %s edge for each report: the touch is read every frame",
+                                  m_IntMode == 0 ? "rising" : "falling");
+                }
+            }
             Wake();
             return true;
         }
@@ -130,8 +153,9 @@ int GT911Touch::Read(TouchPoint* points, int max)
     {
         return 0;
     }
-    // INT high: no new report, and the last one still holds.
-    if (m_IntPin < 0 || !m_Gpio->Read(m_IntPin))
+    // No report waiting (INT says so, where it holds a level): the last one
+    // still holds.
+    if (ReportWaiting())
     {
         const uint32_t now = m_Now ? m_Now() : 0;
         const uint32_t since = now - m_LastRead;

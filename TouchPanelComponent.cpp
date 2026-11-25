@@ -6,6 +6,7 @@
 #include "DekiSPI.h"    // from deki-spi
 #include "CST816Touch.h"
 #include "DisplayPanelComponent.h"
+#include "DsiPanelComponent.h"
 #include "FT5x06Touch.h"
 #include "GT911Touch.h"
 #include "PanelTouchInput.h"
@@ -71,11 +72,23 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
         finish(true);
         return;
     }
+    // The panel the touch is laid over: its size, and how its picture is
+    // turned. A DSI panel's frames are not turned.
     const PanelController* display = DisplayPanelComponent::GetStartedController();
-    if (!display)
+    int32_t panelWidth = 0, panelHeight = 0;
+    uint8_t displayRotation = 0;
+    if (display)
     {
-        DEKI_LOG_ERROR("TouchPanelComponent: no display started - the Display Panel component goes before touch in "
-                       "the setup list");
+        panelWidth = display->GetConfig().panelWidth;
+        panelHeight = display->GetConfig().panelHeight;
+        // The screen's, which tear-free presenting keeps while the controller
+        // is written in its own orientation.
+        displayRotation = display->GetScreenRotation();
+    }
+    else if (!DsiPanelComponent::GetStartedSize(panelWidth, panelHeight))
+    {
+        DEKI_LOG_ERROR("TouchPanelComponent: no display started - the Display Panel or DSI Panel component goes "
+                       "before touch in the setup list");
         finish(false);
         return;
     }
@@ -172,11 +185,9 @@ void TouchPanelComponent::Setup(SetupCallback onComplete)
     mapper.xMax = xMax;
     mapper.yMin = yMin;
     mapper.yMax = yMax;
-    mapper.panelWidth = display->GetConfig().panelWidth;
-    mapper.panelHeight = display->GetConfig().panelHeight;
-    // The screen's, which tear-free presenting keeps while the controller is
-    // written in its own orientation.
-    mapper.displayRotation = display->GetScreenRotation();
+    mapper.panelWidth = panelWidth;
+    mapper.panelHeight = panelHeight;
+    mapper.displayRotation = displayRotation;
     mapper.offsetRotation = static_cast<uint8_t>(offsetRotation);
 
     auto input = std::make_unique<PanelTouchInput>(std::move(touch), mapper, intPin, &TouchNow);

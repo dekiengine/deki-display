@@ -8,6 +8,52 @@ breaking change bumps the minor across the editor, the engine and every
 package together, so a package with no changes of its own is still released
 alongside one that has them.
 
+## Unreleased
+
+### Fixed
+- PanelDisplay builds where the C++ library has no threads (a Raspberry Pi
+  Pico build: Arm's arm-none-eabi library is built for one). Its lock and
+  wake-ups are `PanelSync.h`'s, which do nothing there; with no present
+  worker on such a platform, frames are sent as they are drawn.
+- A GT911 set to pulse its INT line for each report (rising or falling
+  edge, in its 0x804D switch) missed touches: the driver read a report only
+  while INT was low, and a pulse comes and goes between two frames. It now
+  reads how INT is set at start-up: held at a level, it reads while INT says
+  a report waits (low or high, as set); pulsing, it reads the status every
+  frame, as without INT. A controller whose setting cannot be read is read
+  as before.
+
+### Added
+- `DsiPanelComponent` and `DsiDisplay`: MIPI-DSI panels in video mode. The
+  game draws into a frame buffer the panel is not reading and Present shows
+  it from the next refresh: no copy, no tearing. With two buffers each frame
+  waits for the refresh still sending the other; with three (`frameBuffers`)
+  there is always one free and it never waits, for a frame's memory more (on
+  the Elecrow 9" that took Tiny Farm from 18.7 to 26.2 fps). The panel's start-up (`initSequence`), link and video timing are
+  set in the boot scene. The platform gives the panel through `MipiDsi`'s
+  factory (deki-esp32-integration does on the ESP32-P4). Runs on the Elecrow
+  CrowPanel Advanced 9".
+- A DSI panel's backlight can be driven with PWM (`blPwmHz`, `blBrightness`;
+  `DsiDisplay::SetBrightness`) where the platform has it, on and off otherwise.
+- `TouchPanelComponent` lays touch over a DSI panel too, at its size.
+- A DSI panel can take frames in strips (`drawInStrips`, off by default):
+  each strip is drawn in one of two buffers in internal RAM and copied into
+  the frame being put together while the next is drawn, by the platform's
+  DMA where it has one (`IDsiPanel::StartRowsCopy`); rows no strip brought
+  come from the frame shown before. For frame buffers in PSRAM. On the
+  Elecrow 9" (ESP32-P4, strips drawn on both cores) Tiny Farm runs at 60 fps
+  in strips of 28 rows with the panel at 55 MHz, against 44.2 in whole
+  frames. A frame redrawn in parts (the project's `redrawChanges`) copies
+  from the frame shown only the rows its buffer does not already hold, those
+  the frames since it was last drawn changed, not every row it did not draw:
+  a frame changing a few rows no longer costs a whole frame's copy. It takes
+  part of a strip as it is (`SendsPartOfAStrip`), so only what changed is
+  drawn, not the strip's whole rows; each buffer keeps which columns of each
+  row it holds stale, and copies from the frame shown only those the frame
+  did not draw itself: a widget animating in one place copies nothing. A row
+  may get several parts of a frame; what lies between them comes from the
+  frame shown.
+
 ## 0.40.0
 
 ### Changed

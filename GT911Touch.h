@@ -13,7 +13,10 @@ namespace DekiDisplay
 /// Its registers are 16-bit: the status at 0x814E says a report is ready
 /// (bit 7) and how many fingers it holds; their points follow from 0x814F,
 /// 8 bytes each; writing 0 to the status asks for the next report. With an
-/// INT pin wired, it is read only while INT is low (a report is waiting).
+/// INT pin wired and the controller set to hold INT at a level while a
+/// report waits (0x804D, as most boards ship it), it is read only then; set
+/// to pulse INT instead (rising or falling edge), a pulse comes and goes
+/// between two frames, so the status is read every frame, as without INT.
 ///
 /// Portions derived from LovyanGFX (https://github.com/lovyan03/LovyanGFX),
 /// Copyright (c) lovyan03 and contributors, FreeBSD licence: Touch_GT911's
@@ -56,6 +59,11 @@ private:
     NowFn m_Now;
     bool m_Started = false;
     uint32_t m_LastRead = 0;
+    // How INT says a report waits (0x804D, bits 0 and 1): 0 a rising edge,
+    // 1 a falling edge, 2 held low, 3 held high; -1 when it could not be read
+    // (taken as held low, as before).
+    int m_IntMode = -1;
+    bool ReportWaiting() const;
     // The last report: the status byte, then 8 bytes per point.
     uint8_t m_Report[1 + kMaxPoints * 8] = {};
 };

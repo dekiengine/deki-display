@@ -38,6 +38,7 @@ class FakeGT911Bus : public DekiI2c::IDekiI2C
 public:
     uint8_t answersOn = 0x5D;
     uint8_t status = 0;           // at 0x814E
+    int intMode = -1;             // 0x804D's INT trigger, -1: not answered
     std::vector<uint8_t> points;  // from 0x814F
     int clears = 0;
     int reads = 0;
@@ -75,6 +76,11 @@ public:
     }
     bool WriteRead(uint8_t addr, const uint8_t* tx, size_t txLen, uint8_t* rx, size_t rxLen) override
     {
+        if (addr == answersOn && txLen == 2 && tx[0] == 0x80 && tx[1] == 0x4D && rxLen == 1 && intMode >= 0)
+        {
+            rx[0] = static_cast<uint8_t>(0x30 | intMode);  // other switches set, as a board's are
+            return true;
+        }
         if (addr != answersOn || txLen != 2 || tx[0] != 0x81)
         {
             return false;
@@ -294,6 +300,52 @@ TEST_F(GT911Test, AReportIsReadWhileIntIsLowThenCleared)
     m_Gpio.level[16] = false;
     g_Now += 16;
     EXPECT_EQ(touch.Read(&p, 1), 0);
+}
+
+// Set to pulse INT for each report (a falling edge), it is read every frame:
+// a pulse comes and goes between two frames, and INT is seen high.
+TEST_F(GT911Test, AControllerThatPulsesIntIsReadEveryFrame)
+{
+    m_Bus.intMode = 1;
+    GT911Touch touch(&m_Bus, &m_Gpio, 0, 16, -1, &Delay, &Now);
+    ASSERT_TRUE(touch.Init());
+    TouchPoint p;
+    m_Gpio.level[16] = true;
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+
+    m_Bus.Touch(0x0101, 0x0022);  // the pulse is over: INT is high again
+    g_Now += 16;
+    ASSERT_EQ(touch.Read(&p, 1), 1);
+    EXPECT_EQ(p.x, 0x0101);
+    EXPECT_EQ(p.y, 0x0022);
+
+    m_Bus.status = 0x80;  // lifted
+    g_Now += 16;
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+}
+
+// Set to hold INT high while a report waits, it is read while INT is high.
+TEST_F(GT911Test, AControllerThatHoldsIntHighIsReadWhileItIsHigh)
+{
+    m_Bus.intMode = 3;
+    GT911Touch touch(&m_Bus, &m_Gpio, 0, 16, -1, &Delay, &Now);
+    ASSERT_TRUE(touch.Init());
+    // Read every frame, as the game does: the first read after start finds
+    // nothing.
+    TouchPoint p;
+    m_Gpio.level[16] = true;
+    EXPECT_EQ(touch.Read(&p, 1), 0);
+
+    m_Bus.Touch(0x0033, 0x0044);
+    m_Gpio.level[16] = false;
+    const int reads = m_Bus.reads;
+    g_Now += 16;
+    EXPECT_EQ(touch.Read(&p, 1), 0) << "INT low: nothing waits";
+    EXPECT_EQ(m_Bus.reads, reads);
+    m_Gpio.level[16] = true;
+    g_Now += 16;
+    ASSERT_EQ(touch.Read(&p, 1), 1);
+    EXPECT_EQ(p.x, 0x0033);
 }
 
 TEST_F(GT911Test, AReportFromLongAgoIsDroppedForAFreshOne)

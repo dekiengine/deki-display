@@ -21,6 +21,15 @@
       ]
     },
     {
+      "id": "dsi",
+      "displayName": "MIPI-DSI Panel",
+      "buildDefine": "DEKI_FEATURE_DISPLAY_DSI",
+      "defaultEnabled": true,
+      "componentTypes": [
+        "DsiPanelComponent"
+      ]
+    },
+    {
       "id": "touch",
       "displayName": "Touch Panel",
       "buildDefine": "DEKI_FEATURE_DISPLAY_TOUCH",

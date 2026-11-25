@@ -1,11 +1,9 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <vector>
 
 #include <deki/Engine.h>  // ColorFormat
@@ -13,6 +11,7 @@
 
 #include "IPanelIO.h"
 #include "PanelController.h"
+#include "PanelSync.h"
 #include "PanelTurn.h"
 #include "ScanlineClock.h"
 #include "ScanOrderedDisplay.h"  // from deki-rendering
@@ -392,9 +391,9 @@ private:
     int m_NextCopy = 0;
     // The queue of jobs (at most one per copy, plus the stop) and the copies
     // not in use, under m_Lock.
-    std::mutex m_Lock;
-    std::condition_variable m_JobReady;
-    std::condition_variable m_CopyFree;
+    PanelMutex m_Lock;
+    PanelSignal m_JobReady;
+    PanelSignal m_CopyFree;
     Job m_Jobs[3] = {};
     int m_JobHead = 0;
     int m_JobCount = 0;

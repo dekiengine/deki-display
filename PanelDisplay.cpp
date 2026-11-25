@@ -15,6 +15,7 @@ namespace
 {
 
 const PanelDisplay::WorkerBackend* s_Worker = nullptr;
+const PanelSyncHooks* s_SyncHooks = nullptr;
 
 inline uint16_t SwapBytes16(uint16_t v)
 {
@@ -881,6 +882,16 @@ void PanelDisplay::SetWorkerBackend(const WorkerBackend* backend)
     s_Worker = backend;
 }
 
+void SetPanelSyncHooks(const PanelSyncHooks* hooks)
+{
+    s_SyncHooks = hooks;
+}
+
+const PanelSyncHooks* GetPanelSyncHooks()
+{
+    return s_SyncHooks;
+}
+
 bool PanelDisplay::SetAsyncPresent(bool on)
 {
     if (!on)
@@ -889,7 +900,7 @@ bool PanelDisplay::SetAsyncPresent(bool on)
         {
             WaitForPresents();
             Post(Job{ 0, 0, 0, false, true });
-            std::unique_lock<std::mutex> lock(m_Lock);
+            std::unique_lock<PanelMutex> lock(m_Lock);
             m_CopyFree.wait(lock, [this] { return !m_WorkerRunning; });
         }
         for (uint8_t*& staging : m_Staging)
@@ -928,15 +939,22 @@ bool PanelDisplay::SetAsyncPresent(bool on)
     }
     if (!m_Staging[0] || !m_Staging[1])
     {
-        DEKI_LOG_INFO("PanelDisplay: no external memory for two %zu-byte frame copies; frames are sent as they are "
-                      "drawn",
+        // Without them the worker still sends strips (a frame drawn in
+        // strips, which is how a board with too little memory for a frame
+        // draws), from the two small strip copies; whole frames are sent as
+        // they are drawn.
+        for (uint8_t*& staging : m_Staging)
+        {
+            Deki::Memory::Free(staging);
+            staging = nullptr;
+        }
+        DEKI_LOG_INFO("PanelDisplay: no room for two %zu-byte frame copies; strips are sent from the other core, "
+                      "whole frames as they are drawn",
                       bytes);
-        SetAsyncPresent(false);
-        return false;
     }
-    m_StagingBytes = bytes;
+    m_StagingBytes = m_Staging[0] ? bytes : 0;
     {
-        std::lock_guard<std::mutex> lock(m_Lock);
+        std::lock_guard<PanelMutex> lock(m_Lock);
         m_JobHead = 0;
         m_JobCount = 0;
         m_FreeCopies = 2;
@@ -945,7 +963,7 @@ bool PanelDisplay::SetAsyncPresent(bool on)
     if (!s_Worker->start(&PanelDisplay::WorkerMain, this))
     {
         {
-            std::lock_guard<std::mutex> lock(m_Lock);
+            std::lock_guard<PanelMutex> lock(m_Lock);
             m_WorkerRunning = false;
         }
         DEKI_LOG_INFO("PanelDisplay: the present worker did not start (one core?); frames are sent as they are "
@@ -980,7 +998,7 @@ void PanelDisplay::RunWorker()
     {
         Job job{};
         {
-            std::unique_lock<std::mutex> lock(m_Lock);
+            std::unique_lock<PanelMutex> lock(m_Lock);
             if (m_JobCount == 0 && held)
             {
                 lock.unlock();
@@ -1062,7 +1080,7 @@ void PanelDisplay::RunWorker()
     }
     // Notified under the lock: once SetAsyncPresent(false) sees the worker
     // stopped, the display may be destroyed, and the worker must not touch it.
-    std::lock_guard<std::mutex> lock(m_Lock);
+    std::lock_guard<PanelMutex> lock(m_Lock);
     m_WorkerRunning = false;
     m_CopyFree.notify_all();
 }
@@ -1078,7 +1096,7 @@ void PanelDisplay::GiveBackPendingCopy()
     m_IO.WaitPixels(m_IO.GetQueuedCount() - m_PendingEnd);
     m_PendingCopy = false;
     {
-        std::lock_guard<std::mutex> lock(m_Lock);
+        std::lock_guard<PanelMutex> lock(m_Lock);
         ++m_FreeCopies;
     }
     m_CopyFree.notify_all();
@@ -1087,7 +1105,7 @@ void PanelDisplay::GiveBackPendingCopy()
 void PanelDisplay::Post(const Job& job)
 {
     {
-        std::lock_guard<std::mutex> lock(m_Lock);
+        std::lock_guard<PanelMutex> lock(m_Lock);
         m_Jobs[(m_JobHead + m_JobCount) % 3] = job;
         ++m_JobCount;
     }
@@ -1096,7 +1114,7 @@ void PanelDisplay::Post(const Job& job)
 
 int PanelDisplay::TakeCopy()
 {
-    std::unique_lock<std::mutex> lock(m_Lock);
+    std::unique_lock<PanelMutex> lock(m_Lock);
     m_CopyFree.wait(lock, [this] { return m_FreeCopies > 0; });
     --m_FreeCopies;
     const int index = m_NextCopy;
@@ -1115,7 +1133,7 @@ void PanelDisplay::WaitForPresents()
     // or being sent. (The lent frame comes back with its Present, on this
     // core.)
     const int lent = m_LentFrame >= 0 ? 1 : 0;
-    std::unique_lock<std::mutex> lock(m_Lock);
+    std::unique_lock<PanelMutex> lock(m_Lock);
     m_CopyFree.wait(lock, [this, lent] { return m_FreeCopies + lent == 2 || !m_WorkerRunning; });
 }
 
@@ -1211,7 +1229,7 @@ int PanelDisplay::TakeBackFrame(const uint8_t* framebuffer)
 void PanelDisplay::GiveBackCopy(int index)
 {
     {
-        std::lock_guard<std::mutex> lock(m_Lock);
+        std::lock_guard<PanelMutex> lock(m_Lock);
         m_NextCopy = index;
         ++m_FreeCopies;
     }
@@ -1265,7 +1283,8 @@ void PanelDisplay::SendStripBody(uint16_t* strip, int top, int rows, bool swap)
 bool PanelDisplay::PresentRowsAsync(const uint8_t* framebuffer, int width, int height, Deki::ColorFormat format,
                                     int top, int bottom, bool frameStart)
 {
-    if (!CanPresentAsync(framebuffer, width, height, format))
+    // Rows that fit the strip copies need no frame copies.
+    if (!m_Async || !framebuffer || format != Deki::ColorFormat::RGB565 || width != m_Width || height != m_Height)
     {
         return false;
     }
@@ -1284,6 +1303,10 @@ bool PanelDisplay::PresentRowsAsync(const uint8_t* framebuffer, int width, int h
     // it is. Anything taller goes to the same rows of a whole-frame copy,
     // sent through the bands like any other frame.
     const bool strip = EnsureStrips(bottom - top);
+    if (!strip && !CanPresentAsync(framebuffer, width, height, format))
+    {
+        return false;  // taller than a strip, and no frame copies: sent as drawn
+    }
     const int index = TakeCopy();
     const size_t pitch = static_cast<size_t>(width) * sizeof(uint16_t);
     const auto* rows = reinterpret_cast<const uint16_t*>(framebuffer + static_cast<size_t>(top) * pitch);
@@ -1742,7 +1765,12 @@ void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t le
         }
         return;
     }
-    if (m_Async)
+    // Without frame copies only a strip (or a copy already lent) goes to the
+    // worker; anything else is sent as it is, below.
+    const size_t allPixels = static_cast<size_t>(srcWidth) * srcHeight;
+    const bool stripFits = m_Async && lentFrame < 0 && stripCopy && allPixels % m_PanelWidth == 0 &&
+                           EnsureStrips(static_cast<int>(allPixels / m_PanelWidth));
+    if (m_Async && (lent >= 0 || lentFrame >= 0 || stripFits || m_StagingBytes > 0))
     {
         // Copied as it was drawn, and turned on the worker, a band at a time
         // while the band before it is on the wire: turning reads the screen
@@ -1752,8 +1780,7 @@ void PanelDisplay::PresentTurned(const uint16_t* src, int32_t stride, int32_t le
         // (The worker never allocates: its bands are made here, after the
         // strip copies, which need the bigger blocks of internal memory.)
         const size_t pixels = static_cast<size_t>(srcWidth) * srcHeight;
-        const bool strip = lent >= 0 || (lentFrame < 0 && stripCopy && pixels % m_PanelWidth == 0 &&
-                                         EnsureStrips(static_cast<int>(pixels / m_PanelWidth)));
+        const bool strip = lent >= 0 || stripFits;
         if (!EnsureBands())
         {
             if (lent >= 0 || lentFrame >= 0)

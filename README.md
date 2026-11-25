@@ -13,6 +13,7 @@ A display library Deki owns: panel controllers, the buses they are on and their 
 | ST7735, ST7735S, GC9A01 panels | SPI, parallel | tested against LovyanGFX's bytes, not yet on a board |
 | SSD1351 OLED | SPI, parallel | tested against LovyanGFX's bytes, not yet on a board |
 | CO5300 AMOLED panel | QSPI | tested against LovyanGFX's bytes, not yet on a board |
+| MIPI-DSI panels in video mode (EK79007, ...) | MIPI-DSI | runs on the Elecrow CrowPanel Advanced 9" (ESP32-P4) |
 | GT911 touch | I2C | runs on the LilyGO T-Deck Plus |
 | CST816S/T touch | I2C | runs on the LilyGO T-Display S3 AMOLED |
 | FT5x06/FT6x06 touch | I2C | tested against a scripted bus, not yet on a board |
@@ -67,6 +68,14 @@ One command per line or `;`: its hex byte, its parameter bytes, then optionally 
 3. For touch, its bus's component, then `TouchPanelComponent` after the display. GT911, CST816 and FT5x06 are on I2C (`deki-i2c`): the I2C port, INT and RST pins. XPT2046 is on SPI, often the display's bus: the SPI host, CS and its PENIRQ as the INT pin. Then the raw bounds along the panel's width and height before rotation; an XPT2046's need calibrating (it reads about 300 to 3900).
 
 On a platform with none of these buses (the editor, the simulator) the components start nothing and report success, so a board's boot scene runs there too.
+
+## MIPI-DSI panels
+
+`DsiPanelComponent` starts a MIPI-DSI panel in video mode, such as the EK79007 on Elecrow's CrowPanel Advanced 9". There is no window to write: the chip streams the panel whole frames, continuously, from frame buffers in its PSRAM. The game draws straight into one the panel is not reading and Present shows it from the next refresh, so there is no copy and nothing tears. With two buffers, each frame waits for the refresh still sending the other one; with three (`frameBuffers`), there is always one free and drawing never waits. Redraw Changes still draws only what changed, into each buffer what it is owed. Frames are RGB565 and are not turned.
+
+Its settings are what the panel's maker gives: the size, the data lanes and their bit rate, the pixel clock and the six porch and sync widths (which set the refresh rate), the reset and backlight pins (the backlight on PWM with `blPwmHz` and `blBrightness`, where the backlight driver needs it), and `initSequence`, which here has no default and goes over the DSI link before the stream starts. With one frame buffer, a frame's memory is saved and frames tear.
+
+The platform drives the link (deki-esp32-integration: ESP-IDF's esp_lcd DSI driver, on the ESP32-P4). The P4's DSI PHY needs its supply first: an `ESP32LdoSetup` step for LDO channel 3 at 2.5 V, before the panel. Touch goes after the panel as with the others, laid over it at its size.
 
 What the device decides for itself (frames sent from the other core, tear-free frames from the TE line or the scanline) and what a board must set is in the engine's guide, [Making it fast](https://github.com/dekiengine/deki-editor/blob/master/docs/performance.md).
 
